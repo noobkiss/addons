@@ -1,0 +1,39 @@
+How To extract and update the textures list with a new ESO release: (the @Masteroshi430 way)
+
+needed :
+Black book browser 4 https://www.esoui.com/downloads/info2532-BlackBookBrowser.html
+Notepad++ https://notepad-plus-plus.org/downloads/
+
+**** LET'S GO ****
+
+Black book browser:
+    double click on depot\eso.mnf
+	on the right panel click on "Save TextureList"
+	double click on game\client\game.mnf
+	on the right panel click on "Save TextureList"
+
+Notepad++:
+
+    copy the entries in game_texturelist.txt at the end of eso_texturelist.txt
+	delete everything above the 1st art/fx entry (otherwise there will be too much data) (SHIFT+CRTL+HOME to delete all above your current line)
+	also remove every path not starting by /art or /esoui or /resources
+	replace (search > replace) all .dds by .dds',
+	(regular expression search mode) replace (search > replace) all ^ by [1]=' 
+
+	
+	(in case ZOS did dds.dds files) search for .dds',.dds', and replace it to .dds'
+	
+    *let's increment the table index numbers*
+	Place your text cursor to the top left corner of the 1 column.
+	In scroll bar on right side, drag the thumb to scroll to other end of the file.
+	Alt + Shift + Left-click into the bottom right corner of the 1 column. (that selects the entire column of 1)
+	Edit > column editor  
+	select Number to insert
+	initial number: 1 
+	Increase by: 1
+	press ok
+
+	insert the begining and the end of Textureit/core/TextureIt_TexturePaths.lua (it's faster to do it that way)
+	
+rename your eso_texturelist.txt to TextureIt_TexturePaths.lua and replace it in the addon folder (in the Textureit/core/ folder)
+

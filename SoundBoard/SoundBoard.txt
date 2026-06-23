@@ -1,0 +1,10 @@
+## Title: |cFFD700SoundBoard|r |c999999(Dev Tool)|r
+## Description: Browse and play all ESO in-game sounds. Developer tool for addon creators.
+## Author: Miguel
+## Version: 1.1.0
+## APIVersion: 101048 101049
+## AddOnVersion: 3
+## SavedVariables: SoundBoardSV
+
+bindings.xml
+SoundBoard.lua

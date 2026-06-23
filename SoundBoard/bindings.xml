@@ -1,0 +1,12 @@
+<Bindings>
+    <Layer name="SI_KEYBINDINGS_LAYER_GENERAL">
+        <Category name="SoundBoard">
+            <Action name="SOUNDBOARD_PLAY_AGAIN">
+                <Down>SoundBoard_PlayAgain()</Down>
+            </Action>
+            <Action name="SOUNDBOARD_PLAY_NEXT">
+                <Down>SoundBoard_PlayNext()</Down>
+            </Action>
+        </Category>
+    </Layer>
+</Bindings>

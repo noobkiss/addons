@@ -1,0 +1,64 @@
+How To extract and update the textures list with a new ESO release:
+For : textureIt R100029 ; v0.9.20200107+
+
+1. Get the Extractor
+- Get ESOExtract from: https://www.esoui.com/downloads/info...tractData.html
+- Copy that to a simple working folder, like c:\temp
+
+2. Extract the base data:
+- Extract the content 'list only' of the two ZOSFT mnf files, "game" and "depot" 
+- Use (a modification of ) the following commands:
+
+.\EsoExtractData "<...your ESO game install path .. something like C:\Steam\steamapps\common\Zenimax Online>\The Elder Scrolls Online\game\client\game.mnf"  -z F:\ESOEX\zosft_clientgame.csv 
+
+.\EsoExtractData "<...your ESO game install path .. something like C:\Steam\steamapps\common\Zenimax Online>\The Elder Scrolls Online\depot\eso.mnf"  -z F:\ESOEX\zosft_depoteso.csv 
+
+3. Combine the two files into One 
+- Using any text editor, like Notepad++, Sublime, etc, open both files, copy/append one at the end of the other,
+- remove the heading row in the middle that looks like:
+
+  Index,   Index11 ,   Index13 ,   Index21 , FileIndex,  FileOffset,      FileID       , UserData,                Filename
+
+- But leave the one at the top (for now)  
+
+4. Massage the file columns and format it for final result
+- Use any spreadsheet like Excel or Open Office Calc:
+- Open/Import the CSV file, and re-save as the native format (.xslx , .ods) temporarily (it makes it simpler/faster for formulas etc)
+- Remove all the columns except 'Filename'
+- Use a replace formula to change the filename single quotes into double quotes, and add a 'comma'  at the end
+- Add a column to extract the right-last 5 characters of the filename : .dds'
+- Use a filter on the top row (that still has some tags, like 'Filename', 'col1', 'col2' etc) and filter on the file extension
+- Select and remove any rows with extensions that are NOT .dds  (There are some .dat  , .lua  , .fxh  etc)
+
+- Add a column to count the current row, and format it such as 
+[1] =
+[2] = 
+[2] = 
+...
+
+- Add a final column to concatenate the row/index number and the filename .  so you have a format like:
+[rownumber] = "path",
+
+example:
+
+[1] = "\esoui\art\icons\gear_telvanni_medium_hands_a.dds",
+[2] = "\esoui\art\store\pc_crwn_feb912_1x1.dds",
+[3] = "\art\maps\reapersmarch\planeofjodecave_base_3.dds",
+[4] = "\art\maps\thievesguild\hewsbane_base_24.dds",
+... all the way to ...
+[59326] = "\esoui\art\zonestories\completiontypeicon_wayshrine.dds",
+[59327] = "\esoui\art\zonestories\completiontypeicon_worldevents.dds",
+[59328] = "\resources\props\generic\textures\underconstruction.dds",
+... or whatever number of textures you have on that new version .. probably more than 60k!!
+
+-Remove any remaining or working columns (remember to copy the final column once more as 'values') and save this file as a text file again (.txt)
+
+5. Replace/add the new file to TextureIt
+- Copy the current /core/TextureIt_TexturePaths_100029.lua   file   into a new one, say : TextureIt_TexturePaths_NEW.lua
+- With a text Editor, remove the existing list, but be careful to leave the beginning and end of the file. ONly replace the rows that have paths such as you formatted above.
+- Update the TextureIt.txt file to point to the new list; replace the line that says :
+    core\TextureIt_TexturePaths_100029.lua
+    with:
+    core\TextureIt_TexturePaths_NEW.lua
+
+6. Open the game and addon, and enjoy your new Textures!

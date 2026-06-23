@@ -1,0 +1,7 @@
+2026.06.10
+- U50 API UPDATE
+- Updated dependency versions.
+- Added "Rogue's Refuge", "Dancing Waters Wellspring" & "Star-Gazer's Vigil" to housing whitelist since they do exist but are not purchasable yet.
+** POSSIBLE FUTURE OPTIONS **
+- Auto com res?
+

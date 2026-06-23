@@ -1,0 +1,27 @@
+## Title: TextureIt
+## APIVersion: 101050
+## Version: 2026041300 - 101050
+## AddOnVersion: 2026041300
+## Author: Circonian, Baertram, IceHeart0108, @Masteroshi430
+## Description: Circonian's TextureIt - Allows you to parse and view the list of textures in the game; Originally by Circonian; Lately by Baertram and IceHeart0108;
+## DependsOn: LibAddonMenu-2.0>=40
+## SavedVariables: TextureItSaveVars
+
+# Localization
+language/en.lua
+language/$(language).lua
+
+# Core files
+core\TextureIt.lua
+# Last updated: 2026-04-13 PTS API 101050
+core\TextureIt_TexturePaths.lua
+xml\TextureIt.xml
+xml\Bindings.xml
+
+
+#
+# This Add-on is not created by, affiliated with or sponsored by ZeniMax Media Inc. or its affiliates. 
+# The Elder Scrolls� and related logos are registered trademarks or trademarks of ZeniMax Media Inc. in the United States and/or other countries. 
+# All rights reserved
+#
+# You can read the full terms at https://account.elderscrollsonline.com/add-on-terms.

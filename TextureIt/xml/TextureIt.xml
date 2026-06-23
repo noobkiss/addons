@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<GuiXml 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+	xsi:noNamespaceSchemaLocation="http://sir.insidi.at/or/schema/esoui.xsd">
+<!-- Tier, Layer, Level (highest to lowest precedence) -->
+	<Controls>        
+        <TopLevelControl name="TextureIt_wdgTree" clampedToScreen="true" mouseEnabled="true" movable="true" hidden="false" resizeHandleSize="12">
+        	<!-- TopLevelWindow for Tree -->
+        	<Dimensions x="500" y="600" />
+			<DimensionConstraints minX="350" minY="600" /> 
+            <Anchor point="TOPLEFT" relativeTo="GuiRoot" relativePoint="TOPLEFT"  offsetX="100" offsetY="150"/>
+            <Controls>
+            	<Backdrop   name="$(parent)_bckTreeHeader" inherits="ZO_DefaultBackdrop" alpha="1" tier="0" layer="0" level="0">
+            		<!-- Overall Backdrop for the header of the 'tree' section -->
+            		<Anchor point="TOPLEFT" relativeTo="$(parent)" relativePoint="TOPLEFT"  offsetX="0" offsetY="0"/>
+            		<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)" relativePoint="TOPRIGHT"  offsetX="0" offsetY="124"/>
+            	</Backdrop>
+            	<Label 		name="$(parent)_lblTitle" font="ZoFontWinH3" color="FFFFFF" wrapMode="ELLIPSIS" text="|cFF0000 Circonian's |c00FFFF TextureIt" verticalAlignment="CENTER" horizontalAlignment="LEFT" mouseEnabled="true" alpha="1" layer="0" level="0" tier="1" >
+            		<!-- Title label: 'circonians.. -->
+            		<Dimensions x="190" y="30"/>
+					<Anchor point="TOPLEFT" relativeTo="$(parent)" relativePoint="TOPLEFT" offsetX="10" offsetY="10"/>
+					<OnMouseEnter>TextureIt.UI.lblTitle_OnMouseEnter(self)</OnMouseEnter>
+					<OnMouseExit>TextureIt.UI.Common_TooltipOff_OnMouseExit()</OnMouseExit>
+				</Label>
+            	<Button     name="$(parent)_btnCloseAll" inherits="ZO_DefaultButton" font="ZoFontGameMedium"  >
+            		<!-- Button - close the main Tree window -->
+            		<Dimensions x="32" y="32" />
+            		<Anchor point="TOPRIGHT" relativeTo="$(parent)" relativePoint="TOPRIGHT" offsetY="8"/>
+            		<Textures
+            			normal="/esoui/art/buttons/closebutton_up.dds"
+            			pressed="/esoui/art/buttons/closebutton_down.dds"
+            			mouseOver="/esoui/art/buttons/closebutton_mouseover.dds"
+            			disabled="/esoui/art/buttons/closebutton_disabled.dds"
+            		/>
+            		<OnMouseUp>TextureIt.UI.wdgTree_Toggle()</OnMouseUp>
+            	</Button>
+            	<Button 	name="$(parent)_btnResetTree" inherits="ZO_DefaultButton" font="ZoFontGameMedium"  text="TEXTUREIT_TREE_BTN_RESET_LIST">
+            		<!--  Reset the tree list) -->
+            		<Dimensions x="140" y="22" />
+            		<Anchor point="TOPRIGHT" relativeTo="$(parent)" relativePoint="TOPRIGHT" offsetX="-80" offsetY="38"/>
+					<OnMouseDown>TextureIt.UI.btnResetTree_OnMouseDown()</OnMouseDown>
+            	</Button>
+            	<Label name="$(parent)_lblResults" font="ZoFontChat"  color="AAAAAA" wrapMode="ELLIPSIS"  verticalAlignment="CENTER" horizontalAlignment="LEFT" alpha="1" layer="0" level="0" tier="1"  >
+            		<!-- show the results count for total or search -->
+            		<Dimensions x="290" y="20"/>
+            		<Anchor point="TOPLEFT" relativeTo="$(parent)_lblTitle" relativePoint="BOTTOMLEFT" offsetX="5" offsetY="0"/>
+            	</Label>
+            	<Backdrop name="$(parent)_bckSearch" inherits="ZO_EditBackdrop" tier="1">
+            		<!-- backdrop/different color for searchbox -->
+            		<Anchor point="TOPLEFT" relativeTo="$(parent)_lblResults" relativePoint="BOTTOMLEFT" offsetY="8"/>
+            		<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)_bckTreeHeader" relativePoint="BOTTOMRIGHT" offsetX="-10" offsetY="-10" />
+            	</Backdrop>
+            	<EditBox name="$(parent)_eboxSearch"  font="ZoFontChat"  editEnabled="true" maxInputCharacters="250"  multiLine="true" minLineCount="2"  maxLineCount="2" newLineEnabled="false" mouseEnabled="true" tier="1" layer="1">
+            		<!-- Edit box for searches / path result -->
+  					<Anchor point="TOPLEFT" relativeTo="$(parent)_bckSearch" relativePoint="TOPLEFT" offsetX="5" offsetY="1"/>
+            		<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)_bckSearch" relativePoint="BOTTOMRIGHT" offsetX="-5" />
+
+            		<OnEnter>TextureIt.UI.eboxSearch_OnEnter(self)</OnEnter>
+            		<OnMouseDoubleClick>
+            			self:TakeFocus()
+            			self:SelectAll()
+            		</OnMouseDoubleClick>
+            		<OnMouseEnter>TextureIt.UI.eboxSearch_OnMouseEnter(self)</OnMouseEnter>
+            		<OnMouseExit>ZO_Options_OnMouseExit()</OnMouseExit>
+            	</EditBox>
+            	<Backdrop   name="$(parent)_bckTreeCanvas" inherits="ZO_DefaultBackdrop" alpha="1" tier="0" layer="0" level="0">
+            		<!-- Overall Backdrop for the 'tree' section -->
+            		<Anchor point="TOPLEFT" relativeTo="$(parent)_bckTreeHeader" relativePoint="BOTTOMLEFT"  offsetX="0" offsetY="0"/>
+            		<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)" relativePoint="BOTTOMRIGHT"  offsetX="0" offsetY="0"/>
+            	</Backdrop>
+            	<Control name="$(parent)_scrTreeBase" inherits="ZO_ScrollContainerBase" >
+					<!-- Tree: Container for the tree itself, under the title/search area-->
+            		<Anchor point="TOPLEFT" 	relativeTo="$(parent)_bckTreeCanvas" 	relativePoint="TOPLEFT" offsetX="10" offsetY="10"/>
+            		<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)" 					relativePoint="BOTTOMRIGHT" offsetX="-10" offsetY="-10"/>
+					<OnInitialized>ZO_Scroll_Initialize(self)</OnInitialized>
+            		<Controls>
+            			<Control name="$(parent)ScrollChild" resizeToFitDescendents="true">
+            				<!-- Entry point for the tree structure; The name 'ScrollChild' apparently needs to stay so it matches the zos default (?) -->
+            				<OnInitialized>
+            					self:SetParent(self:GetParent():GetNamedChild("Scroll"))
+            					self:SetAnchor(TOPLEFT, nil, TOPLEFT, 0, 0)
+            				</OnInitialized>
+            			</Control>
+            		</Controls>
+				</Control>
+			</Controls>
+		</TopLevelControl>
+		<TopLevelControl name="TextureIt_wdgView" clampedToScreen="false" mouseEnabled="true" movable="true" hidden="false" resizeHandleSize="12">
+			<!-- TopLevel Window For Texture ViewPort -->
+			<Dimensions x="600" y="400" />
+			<DimensionConstraints minX="600" minY="400" /> 
+			<Anchor point="TOPLEFT" relativeTo="TextureIt_wdgTree" relativePoint="TOPRIGHT"  offsetX="0" offsetY="0"/>
+			<Anchor point="BOTTOMLEFT" relativeTo="TextureIt_wdgTree" relativePoint="BOTTOMRIGHT"  offsetX="0" offsetY="0"/>
+			<OnResizeStart>TextureIt.UI.wdgView_OnResizeStart(self)</OnResizeStart>
+			<OnResizeStop>TextureIt.UI.wdgView_OnResizeStop(self)</OnResizeStop>
+			<Controls>
+				<Control name="$(parent)_wdgHeader">
+					<Dimensions x="600" y="90"/>
+					<Anchor point="TOPLEFT" relativeTo="$(parent)" relativePoint="TOPLEFT"/>
+					<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)" relativePoint="TOPRIGHT" offsetY="100"/>
+					<Controls>
+						<Backdrop name="$(parent)_bckTextureHeader" inherits="ZO_DefaultBackdrop" alpha="1" layer="0" level="0" tier="0" >
+							<!-- Canvas for the Header part of the viewport widget-->
+							<AnchorFill/>
+						</Backdrop>
+						<Label name="$(parent)_lblOrigSize" font="ZoFontGame" color="FFFFFF" wrapMode="ELLIPSIS" text="TEXTUREIT_VIEW_LBL_ORIG_SIZE"     verticalAlignment="CENTER" horizontalAlignment="LEFT" alpha="1" tier="1" layer="0" level="0">
+							<!-- Show the texture file original size -->
+							<Anchor point="TOPLEFT" relativeTo="$(parent)" relativePoint="TOPLEFT" offsetX="5" offsetY="5"/>
+						</Label>
+						<Label name="$(parent)_lblCurrSize" font="ZoFontGame" color="FFFFFF" wrapMode="ELLIPSIS" text="TEXTUREIT_VIEW_LBL_CURRENT_SIZE"       verticalAlignment="CENTER" horizontalAlignment="LEFT" alpha="1" tier="1" layer="0" level="0">
+							<!-- Show the texture file current size (if resdized with the viewport) -->
+							<Anchor point="TOPLEFT" relativeTo="$(parent)_lblOrigSize" relativePoint="BOTTOMLEFT" offsetX="0" offsetY="7"/>
+						</Label>
+						<Label name="$(parent)_lblViewPortSize" font="ZoFontGame"  color="FFFFFF" wrapMode="ELLIPSIS" text="TEXTUREIT_VIEW_LBL_VIEWPORT_SIZE" verticalAlignment="CENTER" horizontalAlignment="LEFT" alpha="1" tier="1" layer="0" level="0">
+							<!-- Show the viewport size -->
+							<Anchor point="TOPLEFT" relativeTo="$(parent)_lblCurrSize" relativePoint="BOTTOMLEFT" offsetX="0" offsetY="7"/>
+						</Label>
+						<Button name="$(parent)_btnAnimate" inherits="ZO_DefaultButton" font="ZoFontWinH2"  text="A">
+							<!--toggle the Animate popup widget -->
+							<Dimensions x="60" y="30" />
+							<Anchor point="CENTER" relativeTo="$(parent)_bckTextureHeader" relativePoint="CENTER" offsetX="0" />
+							<OnMouseEnter>TextureIt.UI.btnAnimate_OnMouseEnter(self)</OnMouseEnter>
+							<OnMouseExit>TextureIt.UI.Common_TooltipOff_OnMouseExit()</OnMouseExit>
+							<OnClicked>TextureIt.UI.wdgAnimate_Toggle()</OnClicked>
+						</Button>
+						<Button name="$(parent)_btnActualSizeToggle" inherits="ZO_DefaultButton" font="$(MEDIUM_FONT)|$(KB_18)|soft-shadow-thin" text="TEXTUREIT_VIEW_BTN_ACTUAL_SIZE_TOGGLE">
+							<!-- font="$(MEDIUM_FONT)|$(KB_18)|soft-shadow-thin"   -->
+							<Dimensions x="200" y="22" />
+							<Anchor point="TOPRIGHT" relativeTo="$(parent)" relativePoint="TOPRIGHT" offsetX="-60" offsetY="10"/>
+							<OnClicked>TextureIt.UI.btnActualSize_Toggle()</OnClicked>
+						</Button>
+						<Texture name="$(parent)_txuActualSizeChkboxOn" textureFile="/esoui/art/buttons/checkbox_checked.dds" hidden="0" color="FFFFFF" alpha="1"  tier="1" layer="0" level="0">
+							<!-- texture to show when the 'actual size' checkbox is on -->
+							<Dimensions x="16" y="16" />
+							<Anchor point="TOPLEFT" relativeTo="$(parent)_btnActualSizeToggle" relativePoint="TOPRIGHT" offsetX="10" offsetY="1" />
+						</Texture>
+						<Texture name="$(parent)_txuActualSizeChkboxOff" textureFile="/esoui/art/buttons/checkbox_unchecked.dds" hidden="1" color="FFFFFF" alpha="1"  tier="1" layer="0" level="0">
+							<!-- texture to show when the 'actual size' checkbox is off -->
+							<Dimensions x="16" y="16" />
+							<Anchor point="TOPLEFT" relativeTo="$(parent)_btnActualSizeToggle" relativePoint="TOPRIGHT" offsetX="10"  offsetY="1" />
+						</Texture>
+						<Label name="$(parent)_lblBackgroundSetTo" font="ZoFontGame" color="INTERFACE_COLOR_TYPE_TEXT_COLORS:INTERFACE_TEXT_COLOR_NORMAL" wrapMode="ELLIPSIS" text="TEXTUREIT_VIEW_LBL_BKGROUND_SET_TO" verticalAlignment="CENTER" horizontalAlignment="LEFT" alpha="1" tier="1" layer="0" level="0">
+							<!-- Show the viewport size -->
+							<Anchor point="TOPLEFT" relativeTo="$(parent)_btnActualSizeToggle" relativePoint="BOTTOMLEFT" offsetX="20" offsetY="5"/>
+						</Label>
+						<Control name="$(parent)_cmboxVPortBackgrounds" inherits="ZO_ComboBox">
+							<Dimensions x="180" y="22"/>
+							<Anchor point="TOPLEFT" relativeTo="$(parent)_lblBackgroundSetTo" relativePoint="BOTTOMLEFT" offsetX="0" offsetY="5"/>
+						</Control> 
+
+					</Controls>
+				</Control>
+				<Control name="$(parent)_wdgViewPort">
+					<Dimensions x="600" y="300"/>
+					<Anchor point="TOPLEFT" relativeTo="$(parent)_wdgHeader" relativePoint="BOTTOMLEFT"/>
+					<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)" relativePoint="BOTTOMRIGHT"/>
+					<Controls>
+						<Backdrop name="$(parent)_bckViewPort"  edgeColor="INTERFACE_COLOR_TYPE_TEXT_COLORS:INTERFACE_TEXT_COLOR_NORMAL"   alpha="1" tier="1" layer="0" level="0"  >
+							<Edge file="EsoUI/Art/Tooltips/UI-Border.dds" />
+							<Insets left="4" top="4" right="-4" bottom="-4" />
+							<!-- inherits="ZO_DefaultBackdrop"  -->
+							<AnchorFill/>
+						</Backdrop>
+						<Texture name="$(parent)_txuTextureItem" textureFile="/TextureIt/assets/Disclaimer.dds" color="FFFFFF" alpha="1" tier="1" layer="1" level="0" >
+							<Anchor point="TOPLEFT" relativeTo="$(parent)_bckViewPort" relativePoint="TOPLEFT"  offsetX="25" offsetY="50"/>
+							<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)_bckViewPort" relativePoint="BOTTOMRIGHT"  offsetX="-25" offsetY="-25"/>
+							<OnTextureLoaded>TextureIt.UI.txuTextureItem_OnTextureLoaded(self)</OnTextureLoaded>
+						</Texture>
+					</Controls>
+				</Control>
+			</Controls>
+		</TopLevelControl>
+		<TopLevelControl name="TextureIt_wdgAnimate" clampedToScreen="true" mouseEnabled="true" movable="true" hidden="true" >
+			<!-- TopLevel Window for Animate Popup Settings -->     
+			<Dimensions x="400" y="100" />
+			<DimensionConstraints minX="300" minY="100" /> 
+			<Anchor point="BOTTOM" relativeTo="TextureIt_wdgView" relativePoint="TOP" offsetX="0" offsetY="0" />
+			<Controls>
+				<Backdrop name="$(parent)Backdrop" inherits="ZO_DefaultBackdrop" alpha="1" layer="0" level="0" tier="0" >
+					<Anchor point="TOPLEFT" relativeTo="$(parent)" relativePoint="TOPLEFT"  offsetX="0" offsetY="0"/>
+					<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)" relativePoint="BOTTOMRIGHT"  offsetX="0" offsetY="0"/>
+				</Backdrop>
+				<Label name="$(parent)CellsWide" font="ZoFontGameMedium" color="FFFFFF" wrapMode="ELLIPSIS" text="TEXTUREIT_ANIMATE_LBL_WIDTH" verticalAlignment="CENTER" horizontalAlignment="LEFT" alpha="1" layer="1" level="0" tier="0" >
+					<Anchor point="TOPLEFT" relativeTo="$(parent)" relativePoint="TOPLEFT" offsetX="10" offsetY="10"/>
+					<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)" relativePoint="TOPRIGHT" offsetX="-200" offsetY="30"/>
+				</Label>
+				<Backdrop name="$(parent)WideBg" inherits="ZO_EditBackdrop" alpha="1" layer="0" level="0" tier="0" >
+					<Anchor point="TOPLEFT" relativeTo="$(parent)CellsWide" relativePoint="TOPRIGHT"  offsetX="10" offsetY="0"/>
+					<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)CellsWide" relativePoint="BOTTOMRIGHT"  offsetX="40" offsetY="0"/>
+				</Backdrop>
+				<EditBox name="$(parent)CellsWideEditBox" font="ZoFontChat"  editEnabled="true" maxInputCharacters="2" multiLine="false" newLineEnabled="false" inherits="ZO_DefaultEditForBackdrop">
+					<Anchor point="TOPLEFT" relativeTo="$(parent)WideBg" relativePoint="TOPLEFT" offsetY="0" />
+					<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)Label" relativePoint="BOTTOMRIGHT" offsetY="0" />
+				</EditBox>
+				<Label name="$(parent)CellsHigh" font="ZoFontGameMedium" color="FFFFFF" wrapMode="ELLIPSIS" text="TEXTUREIT_ANIMATE_LBL_HEIGHT" verticalAlignment="CENTER" horizontalAlignment="LEFT" alpha="1" layer="1" level="0" tier="0" >
+					<Anchor point="TOPLEFT" relativeTo="$(parent)CellsWide" relativePoint="BOTTOMLEFT" offsetX="0" offsetY="10"/>
+					<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)CellsWide" relativePoint="BOTTOMRIGHT" offsetX="0" offsetY="30"/>
+				</Label>
+				<Backdrop name="$(parent)HighBg" inherits="ZO_EditBackdrop" alpha="1" layer="0" level="0" tier="0" >
+					<Anchor point="TOPLEFT" relativeTo="$(parent)CellsHigh" relativePoint="TOPRIGHT"  offsetX="10" offsetY="0"/>
+					<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)CellsHigh" relativePoint="BOTTOMRIGHT"  offsetX="40" offsetY="0"/>
+				</Backdrop>
+				<EditBox name="$(parent)CellsHighEditBox" font="ZoFontChat" editEnabled="true" maxInputCharacters="2" multiLine="false" newLineEnabled="false" inherits="ZO_DefaultEditForBackdrop">
+					<Anchor point="TOPLEFT" relativeTo="$(parent)HighBg" relativePoint="TOPLEFT"/>
+					<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)HighBg" relativePoint="BOTTOMRIGHT"  />
+				</EditBox>
+				<Label name="$(parent)FrameRate" font="ZoFontGameMedium" color="FFFFFF" wrapMode="ELLIPSIS" text="TEXTUREIT_ANIMATE_LBL_FPS" verticalAlignment="CENTER" horizontalAlignment="LEFT" alpha="1" layer="1" level="0" tier="0" >
+					<Anchor point="TOPLEFT" relativeTo="$(parent)CellsHigh" relativePoint="BOTTOMLEFT" offsetX="0" offsetY="10"/>
+					<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)CellsHigh" relativePoint="BOTTOMRIGHT" offsetX="0" offsetY="30"/>
+				</Label>
+				<Backdrop name="$(parent)FrameRateBg" inherits="ZO_EditBackdrop" alpha="1" layer="0" level="0" tier="0" >
+					<Anchor point="TOPLEFT" relativeTo="$(parent)FrameRate" relativePoint="TOPRIGHT"  offsetX="10" offsetY="0"/>
+					<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)FrameRate" relativePoint="BOTTOMRIGHT"  offsetX="40" offsetY="0"/>
+				</Backdrop>
+				<EditBox name="$(parent)FrameRateEditBox" font="ZoFontChat" editEnabled="true" maxInputCharacters="2" multiLine="false" newLineEnabled="false" inherits="ZO_DefaultEditForBackdrop">
+					<Anchor point="TOPLEFT" relativeTo="$(parent)FrameRateBg" relativePoint="TOPLEFT"/>
+					<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)FrameRateBg" relativePoint="BOTTOMRIGHT"  />
+				</EditBox>
+				<Button name="$(parent)_btnAnimateToggle" inherits="ZO_DefaultButton" font="ZoFontWinH2" text="TEXTUREIT_ANIMATE_BTN_ANIMATE">
+					<Anchor point="TOPLEFT" relativeTo="$(parent)" relativePoint="TOPRIGHT" offsetX="-160" offsetY="30"/>
+					<Anchor point="BOTTOMRIGHT" relativeTo="$(parent)" relativePoint="BOTTOMRIGHT" offsetX="-10" offsetY="-30"/>
+					<OnMouseDown>TextureIt.UI.btnAnimate_Toggle(self)</OnMouseDown>
+				</Button>
+			</Controls>
+		</TopLevelControl>
+		<Control name="TextureIt_treeNavHeader" inherits="ZO_TreeHeader"  mouseEnabled="true" resizeToFitDescendents="true" virtual="true">
+        	<!-- Tree Element: Header Entry -->     
+        	<DimensionConstraints minY="48" maxY="30" />
+			<OnInitialized>TextureIt.UI.treeNavHeaderAndSubHeader_OnInitialized(self)</OnInitialized>
+            <OnMouseUp>self:OnMouseUp(upInside)</OnMouseUp>
+            <OnMouseEnter>self:OnMouseEnter()</OnMouseEnter>
+            <OnMouseExit>self:OnMouseExit()</OnMouseExit>
+			<Controls>
+				<Texture name="$(parent)_txuIcon" resizeToFitFile="true">
+					<Anchor point="CENTER" relativePoint="LEFT" offsetX="7"/>
+					<Controls>
+						<Texture name="$(parent)_txuHighlight" hidden="true" blendMode="ADD">
+							<AnchorFill/>
+						</Texture>
+					</Controls>
+				</Texture>
+				<Label name="$(parent)_lblText" font="ZoFontWinH4" inherits="ZO_SelectableLabel" modifyTextType="UPPERCASE">
+					<Anchor point="LEFT" offsetX="20" />
+					<OnMouseUp>self:GetParent():OnMouseUp(upInside)</OnMouseUp>
+					<OnMouseEnter>self:GetParent():OnMouseEnter()</OnMouseEnter>
+					<OnMouseExit>self:GetParent():OnMouseExit()</OnMouseExit>
+				</Label>
+			</Controls>
+		</Control>
+		<Control name="TextureIt_treeNavSubHeader" inherits="ZO_TreeHeader"  mouseEnabled="true" resizeToFitDescendents="true" virtual="true">
+			<!-- Tree Element: Header Entry -->     
+			<DimensionConstraints minY="40" maxY="28" />
+			<OnInitialized>TextureIt.UI.treeNavHeaderAndSubHeader_OnInitialized(self)</OnInitialized>
+			<OnMouseUp>self:OnMouseUp(upInside)</OnMouseUp>
+			<OnMouseEnter>self:OnMouseEnter()</OnMouseEnter>
+			<OnMouseExit>self:OnMouseExit()</OnMouseExit>
+			<Controls>
+				<Texture name="$(parent)_txuIcon" resizeToFitFile="true">
+					<Anchor point="CENTER" relativePoint="LEFT" offsetX="7"/>
+					<Controls>
+						<Texture name="$(parent)_txuHighlight" hidden="true" blendMode="ADD">
+							<AnchorFill/>
+						</Texture>
+					</Controls>
+				</Texture>
+				<Label name="$(parent)_lblText" font="ZoFontWinH5" inherits="ZO_SelectableLabel" modifyTextType="LOWERCASE">
+					<Anchor point="LEFT" offsetX="20" />
+					<OnMouseUp>self:GetParent():OnMouseUp(upInside)</OnMouseUp>
+					<OnMouseEnter>self:GetParent():OnMouseEnter()</OnMouseEnter>
+					<OnMouseExit>self:GetParent():OnMouseExit()</OnMouseExit>
+				</Label>
+			</Controls>
+		</Control>
+		<Label name="TextureIt_treeNavEntry" inherits="ZO_TreeEntry ZO_SelectableLabel ZO_TooltipIfTruncatedLabel" font="ZoFontGameMedium" virtual="true" verticalAlignment="CENTER">
+			<!-- Tree Element: Node Entry -->       
+			<Dimensions x="500" y="22" />
+            <OnInitialized>ZO_SelectableLabel_OnInitialized(self, ZO_QuestJournalNavigationEntry_GetTextColor)</OnInitialized>
+            <OnMouseUp>TextureIt.UI.treeNavEntry_OnMouseUp(self, button, upInside)</OnMouseUp>
+			<OnMouseEnter>TextureIt.UI.treeNavEntry_OnMouseEnter(self)</OnMouseEnter>
+			<OnMouseExit>TextureIt.UI.Common_TooltipOff_OnMouseExit()</OnMouseExit>
+            <Controls>
+                <Texture name="$(parent)_txuTaggedIcon" level="3" hidden="true" mouseEnabled="true">
+                    <Dimensions x="22" y="22"/>
+                    <Anchor point="RIGHT" relativePoint="LEFT" offsetX="-2"/>
+                    <OnMouseUp>
+                        TextureIt.UI.treeNavEntry_OnMouseUp(self:GetParent(), button, upInside)
+                    </OnMouseUp>
+                </Texture>
+            </Controls>
+        </Label>
+	</Controls>
+</GuiXml>
+
+
+ 
+
+		
+		
+
+

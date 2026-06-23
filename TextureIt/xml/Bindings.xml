@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Bindings 
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+    xsi:noNamespaceSchemaLocation="http://sir.insidi.at/or/schema/esobindings.xsd">
+<!-- Action name label must match the 2nd part of the SI_BINDING_NAME_xxx  String -->        
+    <Layer name="SI_KEYBINDINGS_CATEGORY_GENERAL">
+        <Category name="TextureIt">
+            <Action name="TEXTUREIT_TOGGLE_MAIN">
+                <Down>TextureIt.UI.wdgTree_Toggle()</Down>
+            </Action>
+        </Category>
+    </Layer>
+</Bindings> 
