@@ -234,11 +234,12 @@ LibLazyCrafting.enchantCPQualityInfo = cpQualityInfo
 
 local function getQualityInfo(isCP, level, quality)
 	if not isCP then
-		return 20,  math.floor(level/5) * 5 + 5 + quality
+		return 19+quality,  math.floor(level/5) * 5 + 5
 	end
 
 	return cpQualityInfo[level][quality], 50
 end
+LibLazyCrafting.getGlyphQualityInfo = getQualityInfo
 
 local function closestGlyphLevel(isCP, level)
 	if not isCP then
@@ -254,8 +255,21 @@ local function closestGlyphLevel(isCP, level)
 		end
 	end
 end
+	local aspectToQuality = 
+{
+	[45850] = 1,
+	[45851] = 2,
+	[45852] = 3,
+	[45853] = 4,
+	[45854] = 5,
+}
+local function getAspectResultQuality(aspectItemID)
+	return aspectToQuality[aspectItemID]
+end
+
 LibLazyCrafting.closestGlyphLevel = closestGlyphLevel
 LibLazyCrafting.getGlyphInfo = function () return glyphInfo, enchantLevelInfo,qualityItemIdInfo  end
+LibLazyCrafting.getAspectResultQuality = getAspectResultQuality
 
 
 --[[

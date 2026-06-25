@@ -1,8 +1,9 @@
 LibSetDetection = LibSetDetection or {}
+local LSD = LibSetDetection
 
 local libName = "LibSetDetection"
-local libVersion = 4
-local libDebug = false 
+local libVersion = 5
+local libDebug = false
 local playerName = GetUnitName("player") 
 local EM = GetEventManager() 
 
@@ -11,6 +12,7 @@ local EM = GetEventManager()
 --[[ ----------------------- ]]
  
 local BroadcastManager = {} 
+local IncognitoFeature = {}   -- Provides the option to only broadcast user-defined sets to group members. 
 local CallbackManager = {}   
 local GroupManager = {}     
 local SetManager = {}        
@@ -24,11 +26,12 @@ local Development = {}
 --[[ -- Templates -- ]]
 --[[ --------------- ]]
 
+-- ensures correct structure of table and no unintended references
 local function Template_SlotCategorySubtables( initBody, initFront, initBack )
-  _initBody = initBody or 0 
-  _initFront = initFront or 0 
-  _initBack = initBack or 0
-  return { ["body"] = _initBody, ["front"] = _initFront, ["back"] = _initBack }
+  initBody = initBody or 0 
+  initFront = initFront or 0 
+  initBack = initBack or 0
+  return { ["body"] = initBody, ["front"] = initFront, ["back"] = initBack }
 end
 
 --[[ ------------------------------- ]]
@@ -75,13 +78,51 @@ local function MergeTables(t1, t2)
 end
 
 
---[[ ---------------------- ]]
---[[ -- Global Variables -- ]]
---[[ ---------------------- ]]
- 
+
+--[[ --------------- ]]
+--[[ -- Constants -- ]]
+--[[ --------------- ]]
+
+LSD.constants = {
+  -- custom event id's
+  ["event_set_change"] = 1, 
+  ["event_data_update"] = 2, 
+  -- change types 
+  ["change_type_deactivated"] = 1, 
+  ["change_type_activated"] = 2, 
+  ["change_type_updated"] = 3, 
+  -- unit type 
+  ["unit_type_player"] = 1, 
+  ["unit_type_group"] = 2, 
+  -- active type 
+  ["active_type_none"] = 0, 
+  ["active_type_dual"] = 1, 
+  ["active_type_front"] = 2, 
+  ["active_type_back"] = 3, 
+  -- set type
+  ["set_type_none"] = -1, 
+  ["set_type_normal"] = 0, 
+  ["set_type_mystic"] = 1, 
+  ["set_type_undaunted"] = 2, 
+  ["set_type_ability_altering"] = 3, 
+}
+local Const = LSD.constants
+
+--[[ Developer Comment ]]
+-- In code overhaul relased with version 4 of this library I added the following 
+-- variables to the global table based on how ZOS uses constants for events and such. 
+-- In an effort to reduce the number of entries to the global table those constants 
+-- where move to the exposed table "LibSetDetection.constants" with version 5.
+-- To prevent anything to break upon releas of the new library version, I will 
+-- TEMPORARILY leave the constants below in the global name space. 
+-- With game update U51, those constants will be made local without backwards compatibility 
+-- and thus no longer accessible by other addons. This gives everybody roughly two mounth to 
+-- to make the necessary changes to their addons. 
+--- TL;DR: constants below will not be available globally with the release of game update 51
+
 --- eventId
-LSD_EVENT_SET_CHANGE = 1 
-LSD_EVENT_DATA_UPDATE = 2
+LSD_EVENT_SET_CHANGE = Const.event_set_change
+LSD_EVENT_DATA_UPDATE = Const.event_data_update
 
 local events = {
   [LSD_EVENT_SET_CHANGE] = "SetChange", 
@@ -90,9 +131,9 @@ local events = {
 
 
 --- changeType
-LSD_CHANGE_TYPE_DEACTIVATED = 1
-LSD_CHANGE_TYPE_ACTIVATED = 2
-LSD_CHANGE_TYPE_UPDATED = 3 
+LSD_CHANGE_TYPE_DEACTIVATED = Const.change_type_deactivated
+LSD_CHANGE_TYPE_ACTIVATED = Const.change_type_activated
+LSD_CHANGE_TYPE_UPDATED = Const.change_type_updated
 
 local changeTypes = {
   [LSD_CHANGE_TYPE_DEACTIVATED] = "deactivated", 
@@ -101,20 +142,19 @@ local changeTypes = {
 }
 
 --- unitType
-LSD_UNIT_TYPE_PLAYER = 1 
-LSD_UNIT_TYPE_GROUP = 2
+LSD_UNIT_TYPE_PLAYER = Const.unit_type_player
+LSD_UNIT_TYPE_GROUP = Const.unit_type_group
 
 local unitTypes = {
   [LSD_UNIT_TYPE_PLAYER] = "Player", 
   [LSD_UNIT_TYPE_GROUP] = "Group", 
 }
 
-
 --- activeType 
-LSD_ACTIVE_TYPE_NONE = 0 
-LSD_ACTIVE_TYPE_DUAL_BAR = 1
-LSD_ACTIVE_TYPE_FRONT_BAR = 2
-LSD_ACTIVE_TYPE_BACK_BAR = 3 
+LSD_ACTIVE_TYPE_NONE = Const.active_type_none
+LSD_ACTIVE_TYPE_DUAL_BAR = Const.active_type_dual
+LSD_ACTIVE_TYPE_FRONT_BAR = Const.active_type_front
+LSD_ACTIVE_TYPE_BACK_BAR = Const.active_type_back
 
 local activeTypes = {
   [LSD_ACTIVE_TYPE_NONE] = "None",
@@ -123,19 +163,22 @@ local activeTypes = {
   [LSD_ACTIVE_TYPE_BACK_BAR] = "Back",
 }
 
-
 --- setType 
-LSD_SET_TYPE_NORMAL = 0 
-LSD_SET_TYPE_MYSTICAL = 1 
-LSD_SET_TYPE_UNDAUNTED = 2 
-LSD_SET_TYPE_ABILITY_ALTERING = 3
+local LSD_SET_TYPE_NONE = Const.set_type_none   -- already local because did not exist before V5
+LSD_SET_TYPE_NORMAL = Const.set_type_normal
+LSD_SET_TYPE_MYSTICAL = Const.set_type_mystic
+LSD_SET_TYPE_UNDAUNTED = Const.set_type_undaunted
+LSD_SET_TYPE_ABILITY_ALTERING = Const.set_type_ability_altering
 
 local setTypes = {
+  [LSD_SET_TYPE_NONE] = "none",
   [LSD_SET_TYPE_NORMAL] = "normal", 
   [LSD_SET_TYPE_MYSTICAL] = "mystical", 
   [LSD_SET_TYPE_UNDAUNTED] = "undaunted", 
   [LSD_SET_TYPE_ABILITY_ALTERING] = "ability altering", 
 }
+
+
 
 --[[ --------------------- ]]
 --[[ -- Local Variables -- ]]
@@ -183,8 +226,11 @@ local twoHanderList = {
 }
 
 
-local exceptionList = {
-  [695] = { ["maxEquip"] = 5 }  -- Shattered-Fate
+local customSetData = {
+  [0] = { ["setName"] = "Generic Gear", ["maxEquip"] = 15},        -- Generic Set (not an actual set)    
+  [1] = { ["setName"] = "Incognito Set", ["maxEquip"] = 15 } ,     -- Incognito Set 
+  [695] = { ["maxEquip"] = 5 },   -- Shattered-Fate
+  [810] = { ["maxEquip"] = 5 },   -- Fellowships Fortitude 
 }
 
 
@@ -192,13 +238,12 @@ local exceptionList = {
 --[[ -- Specific Utility Functions -- ]]
 --[[ -------------------------------- ]]
 
-local function CheckException(setId, attribute) 
-  if not setId then return exceptionList end  -- returns entire list, if no setId is provided
-  local hasExceptions = exceptionList[setId]  -- checks if there is an entry for the specific set
-  if not attribute then return hasExceptions end  -- returns all entries for specific set 
-  if not hasExceptions then return end  -- returns nil, if there are no entries
-  local hasSpecificException = hasExceptions[attribute] -- checks for specific entry, if provided
-  return hasSpecificException  -- returns the specific entry or nil
+local function CheckForCustomAttributeValue(setId, attribute, zosValue)
+  local customData = customSetData[setId] 
+  if not customData then return zosValue end 
+
+  local customAttribute = customData[attribute] 
+  return customAttribute or zosValue 
 end
 
 
@@ -225,16 +270,16 @@ end
 
 
 local function GetSetName( setId ) 
-  local _, setName = GetItemSetInfo( setId )
-  if setName == "" then setName = "Unknown Set" end
+  local _, setNameZos = GetItemSetInfo( setId )
+  setName = CheckForCustomAttributeValue(setId, "setName", setNameZos) 
+  --if setName == "" then setName = "Invalid Set" end
   return setName
 end 
 
 
 local function GetMaxEquip( setId )
   local _, _, _, _, _, maxEquipZos = GetItemSetInfo( setId ) 
-  if maxEquipZos == 0 then maxEquipZos = 15 end
-  maxEquip = CheckException(setId, "maxEquip") or maxEquipZos
+  maxEquip = CheckForCustomAttributeValue(setId, "maxEquip", maxEquipZos) 
   return maxEquip, maxEquipZos
 end
 
@@ -265,6 +310,8 @@ end
 
 local function ColorString(str, colorName) 
   local colorList = {
+    ["red"] = "ff0000", 
+    ["blue"] = "0000ff", 
     ["green"] = "00ff00",  
     ["orange"] = "ff8800", 
     ["cyan"] = "00ffff", 
@@ -343,7 +390,6 @@ end
 
 
 local function ResultCode( resultCode )  
-  --- debug esult
   if libDebug and CallbackManager.debug then 
     debugMsg("CM", "Result: "..registryResultCodes[resultCode])
   end
@@ -596,7 +642,7 @@ function SetManager:AnalyseData()
       for setId, numEquip in pairs(self.numEquipList) do 
         local setStr = zo_strformat("[<<1>>] <<2>>", ColorString(tostring(setId), "cyan"), ColorString(GetSetName(setId), "orange")  )  
         local numEquipStr = zo_strformat("{body, front, back} = {<<1>>, <<2>>, <<3>>}", ColorString(tostring(numEquip.body), "orange"), ColorString(tostring(numEquip.front), "orange"), ColorString(tostring(numEquip.back), "orange"))
-        local setTypeStr = zo_strformat("setType = <<1>>", ColorString(setTypes[LibSetDetection.GetSetType(setId)], "orange") ) 
+        local setTypeStr = zo_strformat("setType = <<1>>", ColorString(setTypes[LSD.GetSetType(setId)], "orange") ) 
         local activeTypeStr = zo_strformat("activeType = <<1>>", ColorString(activeTypes[self.activeList[setId]], "orange") ) 
         d( zo_strformat("<<1>> || <<2>> || <<3>> || <<4>>", setStr, setTypeStr, activeTypeStr, numEquipStr ) )
       end
@@ -747,6 +793,11 @@ function GroupManager:AreUnitDataAvailable( unitTag )
 end
 
 
+
+
+
+
+
 function GroupManager:Initialize() 
   self.debug = true
   self.isGrouped = IsUnitGrouped("player") 
@@ -769,17 +820,18 @@ function GroupManager:Initialize()
   end
   
   local function OnGroupMemberLeft(_, charName, _, isLocalPlayer)
+    local GM = GroupManager
     if isLocalPlayer then 
-      GroupManager.isGrouped = false 
+      GM.isGrouped = false 
       if libDebug and self.debug then 
         debugMsg("GM", zo_strformat("Local player <<1>>", ColorString("left group", "orange") ) ) 
       end
     else 
       local unitName = ConvertCharToUnitName(charName) 
-      if libDebug and self.debug and GroupManager.groupSets[unitName] then 
+      if libDebug and self.debug and GM.groupSets[unitName] then 
         debugMsg("GM", zo_strformat("Removed data of <<1>> because they <<2>>", ColorString(unitName, "green"), ColorString("left group", "orange") ) ) 
       end 
-      GroupManager.groupSets[unitName] = nil  
+      GM.groupSets[unitName] = nil  
     end 
   end
   
@@ -829,29 +881,69 @@ function DataMsg:SerilizeData( rawNumEquipList, requestSync )
     ["WeaponSets"] = {},
     ["UndauntedSets"] = {},  
   }
+
+  -- support for incognito feature 
+  local incognitoSet = {
+    body = 0, 
+    front = 0, 
+    back = 0,
+  }
+  hasIncognitoSet = false 
+
   for setId, setData in pairs( rawNumEquipList ) do 
-    local setType = LUT:GetSetType( setId ) 
-    if setType == LSD_SET_TYPE_NORMAL then 
-      table.insert(formattedData["NormalSets"], {
-        id=setId, 
-        body=setData.body, 
-        front = setData.front, 
-        back = setData.back} )
-    elseif setType == LSD_SET_TYPE_MYSTICAL then
-      formattedData["mystical"] = LUT:ExternalToInternalId("mystical", setId)
-    elseif setType == LSD_SET_TYPE_UNDAUNTED then 
-      table.insert(formattedData["UndauntedSets"], {
-        id=LUT:ExternalToInternalId("undaunted", setId), 
-        body = setData.body
-      })
-    elseif setType == LSD_SET_TYPE_ABILITY_ALTERING then 
-      table.insert( formattedData["WeaponSets"], {
-        id = LUT:ExternalToInternalId("weapon", setId),
-        front = setData.front,
-        back = setData.back
-      })
+
+    --- check if setData may be transmitted 
+    local allowTransmission = nil 
+    if not IncognitoFeature.store.enabled then 
+      allowTransmission = true -- incognito feature is disabled 
+    else 
+      if IncognitoFeature.whiteList[setId] then 
+        allowTransmission = true  -- set is exception 
+      else 
+        allowTransmission = false
+      end
+    end
+
+    --- data format compatible with protocol definition
+    if allowTransmission then 
+      local setType = LUT:GetSetType( setId ) 
+      if setType == LSD_SET_TYPE_NORMAL then 
+        table.insert(formattedData["NormalSets"], {
+          id=setId, 
+          body=setData.body, 
+          front = setData.front, 
+          back = setData.back} )
+      elseif setType == LSD_SET_TYPE_MYSTICAL then
+        formattedData["mystical"] = LUT:ExternalToInternalId("mystical", setId)
+      elseif setType == LSD_SET_TYPE_UNDAUNTED then 
+        table.insert(formattedData["UndauntedSets"], {
+          id=LUT:ExternalToInternalId("undaunted", setId), 
+          body = setData.body
+        })
+      elseif setType == LSD_SET_TYPE_ABILITY_ALTERING then 
+        table.insert( formattedData["WeaponSets"], {
+          id = LUT:ExternalToInternalId("weapon", setId),
+          front = setData.front,
+          back = setData.back
+        })
+      end
+    else -- accumulate set pieces of not disclosed sets 
+      hasIncognitoSet = true
+      incognitoSet.body = incognitoSet.body + setData.body
+      incognitoSet.front = incognitoSet.front + setData.front
+      incognitoSet.back = incognitoSet.back + setData.back  
     end
   end
+  
+  -- add incognito set to formatted data to be transmitted 
+  if hasIncognitoSet then 
+    table.insert(formattedData["NormalSets"], {
+          id=1, -- hardcoded setId für custom incognito set 
+          body = incognitoSet.body, 
+          front = incognitoSet.front, 
+          back = incognitoSet.back} )  
+  end
+
   return formattedData
 end
 
@@ -878,11 +970,11 @@ function DataMsg:DeserilizeData( rawData )
   for _, setData in ipairs(rawData.NormalSets) do 
     data[setData.id] = Template_SlotCategorySubtables( setData.body, setData.front, setData.back )
   end
-  return data, rawData.requestSync
+  return data
 end
 
 
-function DataMsg:OnIncomingMsg(unitTag, rawData) 
+function DataMsg:OnIncomingMsg( unitTag, rawData ) 
   local unitName = GetUnitName(unitTag)
   if unitName == playerName then 
     if libDebug and self.debug then 
@@ -890,16 +982,21 @@ function DataMsg:OnIncomingMsg(unitTag, rawData)
       d("--------------------------------------------------")  
     end
   else 
-    local data, requestSync = self:DeserilizeData(rawData)
+    local setData = self:DeserilizeData(rawData)
+    local requestSync = rawData.requestSync 
     if libDebug and self.debug then 
-      debugMsg("BM", zo_strformat("Received Data from <<1>> (<<2>>) <<3>>", ColorString(unitName, "green"), ColorString(unitTag, "green"), requestSync and ColorString("sync requested", "orange") ) )
+      local syncStr = requestSync and ColorString("- sync requested", "orange") or ""
+      debugMsg("BM", zo_strformat("Received Data from <<1>> (<<2>>) <<3>> <<4>>", ColorString(unitName, "green"), ColorString(unitTag, "green"), incogStr, syncStr ) )
     end    
+
     if requestSync then 
       BroadcastManager:QueueBroadcast( PlayerSets.numEquipList, false, true )
     end
-    GroupManager:UpdateSetData( unitName, unitTag, data ) 
+
+    GroupManager:UpdateSetData( unitName, unitTag, setData ) 
   end
-end
+end 
+
 
 
 function DataMsg:SendData( rawNumEquipList ) 
@@ -922,6 +1019,7 @@ function DataMsg:InitMsgHandler()
   self.handler = LGB:RegisterHandler("LibSetDetection")
   self.handler:SetDisplayName("Lib Set Detection")
   self.handler:SetDescription("Shares equipped set pieces with group members.")
+  
   self.protocol = self.handler:DeclareProtocol(40, "SetData")
   local normalSetsArray = CreateArrayField( CreateTableField("NormalSets", {
       CreateNumericField("id", { minValue = 0, maxValue = 1023 }),  --10 bit
@@ -941,11 +1039,17 @@ function DataMsg:InitMsgHandler()
   self.protocol:AddField( normalSetsArray ) -- 4 bit length + x*18 bit 
   self.protocol:AddField( weaponSetsArray ) -- 2 bit length +  x*10 bit
   self.protocol:AddField( undauntedSetsArray ) -- 2bit length + x*8 bit
-  self.protocol:AddField( CreateNumericField("mystical", {minValue = 0, maxValue = 63} ) )
+  self.protocol:AddField( CreateNumericField("mystical", {minValue = 0, maxValue = 63} ) ) -- 6 bit
   self.protocol:AddField( CreateFlagField("requestSync") )
   self.protocol:OnData( function(...) self:OnIncomingMsg(...) end )  
+  
+  --- @ToDo: Awaiting LGB-Update, requires exposed function for user settings 
+  --local settings = IncognitoFeature:GetProtocolMenu()
+  --self.protocol:SetUserSettings( settings )  
+  
   self.protocol:Finalize()
 end
+
 
 function DataMsg:Initialize(debug) 
   self.debug = debug
@@ -1027,6 +1131,12 @@ end
 
 function SlotManager:UpdateSlot( slotId ) 
   if libDebug and self.debug then debugMsg( "Slot", zo_strformat("Checking specific equipment slot - <<1>>", ColorString(equipSlotList[slotId].." update", "orange") ) )  end 
+  local oldSetId = self.equippedGear[slotId]
+  local newSetId = GetSetId(slotId)
+  if oldSetId == newSetId then -- early out to catch equipping a set piece with the same set or reparing armor pieces
+    if libDebug and self.debug then debugMsg( "Slot", zo_strformat("No setId changes for <<1>> detected", ColorString(equipSlotList[slotId], "orange") ) ) end
+    return 
+  end 
   self:UpdateSetId( slotId ) 
   self:ResetQueue() 
 end
@@ -1163,8 +1273,12 @@ function LookupTables:GetSetType( setId )
   if self:ExternalToInternalId("mystical", setId) then return LSD_SET_TYPE_MYSTICAL 
   elseif self:ExternalToInternalId("undaunted", setId) then return LSD_SET_TYPE_UNDAUNTED
   elseif self:ExternalToInternalId("weapon", setId) then return LSD_SET_TYPE_ABILITY_ALTERING
-  else 
-    return LSD_SET_TYPE_NORMAL 
+  else  
+    if GetMaxEquip(setId) == 0 then 
+      return LSD_SET_TYPE_NONE 
+    else 
+      return LSD_SET_TYPE_NORMAL 
+    end
   end
 end
 
@@ -1172,6 +1286,155 @@ end
 function LookupTables:Initialize() 
   self:DefineSetIdMapping()
 end
+
+--[[ %%%%%%%%%%%%%%%%%%%%%%%%%%%% ]]
+--[[ %% ---------------------- %% ]]
+--[[ %% -- IncognitoFeature -- %% ]]
+--[[ %% ---------------------- %% ]]
+--[[ %%%%%%%%%%%%%%%%%%%%%%%%%%%% ]]
+
+local ingocnitoPresets = {
+  ["hodor"] = {
+    displayName = "Hodor Reflexes", 
+    exceptions = {
+      [331] = true,   -- War Maschine
+      [332] = true,   -- Master Architect
+      [585] = true,   -- Saxhleel (normal) 
+      [649] = true},  -- Pillager (normal) 
+  }
+}
+
+function IncognitoFeature:Initialize() 
+  local defaults = {
+    enabled = false, 
+    exceptions = {}, 
+    presets = {}
+  }
+  for preset, _ in pairs(ingocnitoPresets) do 
+    defaults.presets[preset] = false
+  end
+  self.debug = true 
+  self.store = ZO_SavedVars:NewAccountWide("LibSetDetectionSavedVariables", 1, nil, defaults)
+  self.presets = ingocnitoPresets
+  self:BuildWhiteList() 
+end
+
+
+function IncognitoFeature:BuildWhiteList() 
+  local store = self.store
+  local whiteList = ZO_ShallowTableCopy( store.exceptions ) 
+
+  for preset, presetData in pairs(self.presets) do 
+    if store.presets[preset] then 
+      for setId, _ in pairs(presetData.exceptions) do 
+        whiteList[setId] = true
+      end
+    end
+  end
+  self.whiteList = whiteList
+end
+
+
+function IncognitoFeature:PrintWhiteListToChat()
+  local function printTableOfSets( tab ) 
+      for setId,_ in pairs(tab) do 
+        d(zo_strformat("[<<1>>] <<2>>", setId, GetSetName(setId)))
+      end
+  end
+  local enabledStr = self.store.enabled and "On" or "Off"
+  d( zo_strformat("[<<1>>] Incognito feature is <<2>>!", ColorString("LibSetDetection", "cyan"), ColorString(self.store.enabled and "On" or "Off",self.store.enabled and "green" or "red") ) )
+  d( ColorString("Whitelist:", "orange") )
+  local setList = {}
+  for setId, _ in pairs( self.whiteList) do 
+    table.insert(setList, setId) 
+  end
+  table.sort(setList) 
+  for idx, setId in ipairs(setList) do 
+    d( zo_strformat("<<1>> - <<2>> (<<3>>)", idx, ColorString(GetSetName(setId), "orange"), setId ))
+  end
+end
+
+
+function IncognitoFeature:GetProtocolMenu() 
+
+  local options = {}
+
+  table.insert( options, {
+    type="checkbox", 
+    name = "...but only for specific Sets", 
+    tooltip = "OFF = Information about all Sets are send. \nON = Only information about sets specified in the exceptions below are send.",
+    getFunc = function() return self.store.enabled end, 
+    setFunc = function(bool) 
+      self.store.enabled = bool
+    end
+  })  
+  table.insert( options, {type="divider"})
+
+  for preset, presetData in pairs(self.presets) do 
+    local tooltipStr = "WIP" -- "Automatically adds exceptions for all sets required by 'Hodor Reflexes' to work correctly. (Master Architect, War Maschine, Pillager, Saxleel)"
+    table.insert( options, {
+    disabled = function() return not self.store.enabled end,  
+    type="checkbox", 
+    name = "Exception Preset: "..presetData.displayName, 
+    tooltip = tooltipStr, 
+    getFunc = function() return self.store.presets[preset] end, 
+    setFunc = function(bool) 
+      self.store.presets[preset] = bool 
+      self:BuildWhiteList() 
+    end
+  })
+  end
+
+  table.insert( options, {
+    disabled = function() return not self.store.enabled end, 
+    type="editbox", 
+    name = "Additional SetId Exceptions:", 
+    isMultiline = true, 
+    isExtraWide = true, 
+    width = "full",
+    getFunc = function() 
+      local exceptions = {} 
+      for setId, _ in pairs( self.store.exceptions) do 
+        table.insert( exceptions, setId ) 
+      end
+      return table.concat(exceptions, ",") 
+    end, 
+    setFunc = function(text) 
+      local function splitCSV(text) -- taken from undaunted
+        local fields = {}
+        text:gsub("([^,]+)", function(result)
+        result = tonumber(result)
+        fields[#fields+1] = result and math.floor(result) or nil
+        end)
+	      return fields
+      end
+      local formattedText = splitCSV(text)
+      self.store.exceptions = {}
+      for _, setId in ipairs( formattedText ) do 
+        self.store.exceptions[setId] = true
+      end
+      self:BuildWhiteList() 
+    end
+  })
+
+  table.insert( options, {
+    disabled = function() return not self.store.enabled end, 
+    type="button", 
+    name = "Print Exception List To Chat", 
+    width = "half",
+    func = function()
+      self:PrintWhiteListToChat()
+    end
+  })
+
+  --- @ToDo Placeholder until LGB-Update 
+  --local settings = LibGroupBroadcast.LAM2UserSettings:New() 
+  --settings:Initialize( options )  
+  --return settings 
+end
+
+
+
 
 
 --[[ %%%%%%%%%%%%%%%%%%%%%% ]]
@@ -1187,6 +1450,7 @@ end
 
 
 local function OnSlotUpdate(_, _, slotId, _, _, _) 
+--local function OnSlotUpdate(eventCode, bagId, slotId, isNewItem, itemSound, inventoryUpdate, stackCount) 
   SlotManager:UpdateSlot(slotId)
 end
 
@@ -1213,11 +1477,8 @@ end
 --[[ %%%%%%%%%%%%%%%%%%%%%%%%%% ]]
 
 local function Initialize() 
-
-  if ExoYsDevelopmentTool then 
-    libDebug = ExoYsDevelopmentTool.devMode[libName] 
-  end
-
+  
+  IncognitoFeature:Initialize() 
   LookupTables:Initialize()
   CallbackManager:Initialize()
   GroupManager:Initialize()
@@ -1226,6 +1487,8 @@ local function Initialize()
 
   PlayerSets = SetManager:New( LSD_UNIT_TYPE_PLAYER ) 
   EmptySetManager = SetManager:New( LSD_UNIT_TYPE_GROUP )
+
+
 
   --- Register Events 
   EM:RegisterForEvent( libName.."EquipChange", EVENT_INVENTORY_SINGLE_SLOT_UPDATE, OnSlotUpdate )
@@ -1277,51 +1540,100 @@ end
 
 --- Event (Un-)Registration 
 -- eventId, name, callback, unitType, param
-function LibSetDetection.RegisterEvent( eventId, name, callback, unitType, param ) 
+function LSD.RegisterEvent( eventId, name, callback, unitType, param ) 
   return CallbackManager:UpdateRegistry( true, eventId, name, callback, unitType, param)
 end
 
-function LibSetDetection.UnregisterEvent( eventId, name, unitType, param )
+function LSD.UnregisterEvent( eventId, name, unitType, param )
   return CallbackManager:UpdateRegistry( false, eventId, name, nil, unitType, param)
 end
 
 
 --- Standard Data Access 
-function LibSetDetection.GetUnitSetActiveType( unitTag, setId )
-  return AccessSetManager( "GetSetActiveType", unitTag, setId )
+function LSD.GetUnitSetActiveType( unitTag, setId )
+  return AccessSetManager( "GetSetActiveType", unitTag, setId ) or LSD_ACTIVE_TYPE_NONE
+  -- return: activeType *number* (library specific property)
 end
 
-function LibSetDetection.GetUnitSetNumEquip( unitTag, setId )
+function LSD.GetUnitSetNumEquip( unitTag, setId )
+  if not LSD.AreUnitDataAvailable(unitTag) then return 0, 0, 0 end
   return AccessSetManager( "GetSetNumEquip", unitTag, setId )  
+  -- return: equipBody *number*, equipFront *number*, equipBack *number*
 end
 
-function LibSetDetection.GetUnitSetData( unitTag )
+function LSD.GetUnitSetData( unitTag )
+  if not LSD.AreUnitDataAvailable(unitTag) then return {} end
   return AccessSetManager( "GetSetData", unitTag  )
+  -- return: setData *table* (key = setId, value = setSpecificData)
+end
+
+function LSD.GetGroupSets() 
+  local groupSets = {}
+  for _, unitTag in pairs( LSD.GetAvailableUnitTags( true ) ) do
+    local unitSets = LSD.GetUnitSetData(unitTag)  
+    for setId, setData in pairs(unitSets) do 
+      if setData.activeType > 0 then -- only listing complete sets
+        groupSets[setId] = groupSets[setId] or {}
+        table.insert( groupSets[setId], unitTag )
+      end
+    end
+  end
+  return groupSets
+end
+
+function LSD.IsSetActiveOnCurrentBar( setId ) 
+  local activeType = LSD.GetUnitSetActiveType("player", setId) 
+  -- check the trivial cases 
+  if activeType == LSD_ACTIVE_TYPE_NONE then return false end 
+  if activeType == LSD_ACTIVE_TYPE_DUAL_BAR then return true end 
+  -- check hotbar specific cases 
+  local currentBar = GetActiveWeaponPairInfo() 
+  if currentBar == ACTIVE_WEAPON_PAIR_MAIN and activeType == LSD_ACTIVE_TYPE_FRONT_BAR then return true end 
+  if currentBar == ACTIVE_WEAPON_PAIR_BACKUP and activeType == LSD_ACTIVE_TYPE_BACK_BAR then return true end 
+  -- all other cases
+  return false 
+end
+
+function LSD.GetUnitTagsWithSpecificSet( setId, ignorePlayerTag ) 
+  local tagsWithSet = {}
+  for _, unitTag in pairs(LSD.GetAvailableUnitTags(ignorePlayerTag)) do 
+    local unitSets = LSD.GetUnitSetData(unitTag) 
+    if unitSets[setId] then 
+      if unitSets[setId].activeType > 0 then 
+        table.insert(tagsWithSet, unitTag) 
+      end
+    end
+  end
+  return tagsWithSet
 end
 
 
 --- Raw Data Access 
-function LibSetDetection.GetUnitRawNumEquipList( unitTag ) 
-  return AccessSetManager( "GetRawNumEquipList", unitTag )
+function LSD.GetUnitRawNumEquipList( unitTag ) 
+  return AccessSetManager( "GetRawNumEquipList", unitTag ) or {}
 end
 
-function LibSetDetection.GetPlayerEquippedGear( )
+function LSD.GetPlayerEquippedGear( )
   return ZO_DeepTableCopy( SlotManager.equippedGear )
 end
 
 
 --- Data Availability 
-function LibSetDetection.AreUnitDataAvailable( unitTag ) 
+function LSD.IsUnitDataAvailable( unitTag ) 
   local unitName = GetUnitName(unitTag) 
   if unitName == playerName then return true end 
   return GroupManager.groupSets[unitName] and true or false 
 end
 
-function LibSetDetection.GetAvailableUnitTags() 
+
+
+function LSD.GetAvailableUnitTags( ignorePlayerTag ) 
   local GM = GroupManager 
   if GM.mapOutdated then GM:UpdateGroupMap() end 
   local availableTags = {}
-  table.insert(availableTags, "player")
+  if not ignorePlayerTag then 
+    table.insert(availableTags, "player")
+  end
   for unitName, _ in pairs(GM.groupSets) do 
     table.insert( availableTags, GM.groupMap[unitName])
   end 
@@ -1330,8 +1642,14 @@ function LibSetDetection.GetAvailableUnitTags()
 end
 
 
+
+
 --- Utility Functions
-function LibSetDetection.ConvertActiveType( activeType ) 
+
+
+
+
+function LSD.ConvertActiveType( activeType ) 
   local activeTypeConversion = {
     [LSD_ACTIVE_TYPE_NONE] = {false, false, false, false},
     [LSD_ACTIVE_TYPE_FRONT_BAR] = {true, false, true, false}, 
@@ -1340,18 +1658,20 @@ function LibSetDetection.ConvertActiveType( activeType )
   }
   if activeTypeConversion[activeType] then 
     local returnTable = activeTypeConversion[activeType]
+
     return returnTable[1], returnTable[2], returnTable[3], returnTable[4]
   else 
-    return 
+    return nil,nil,nil,nil
   end
+  -- return: either-Bar *bool*, both-Bars *bool*, frontBar *bool*, backBar *bool*
 end
 
-function LibSetDetection.GetSetIdByItemLink( itemLink )
+function LSD.GetSetIdByItemLink( itemLink )
   local _, _, _, _, _, setId = GetItemLinkSetInfo( itemlink )
   return setId
 end
 
-function LibSetDetection.GetSetName( setId, withoutPerfectedString ) 
+function LSD.GetSetName( setId, withoutPerfectedString ) 
   if withoutPerfectedString then 
     return GetSetName( ConvertToUnperfected(setId) )
   else 
@@ -1359,13 +1679,16 @@ function LibSetDetection.GetSetName( setId, withoutPerfectedString )
   end 
 end 
 
-function LibSetDetection.GetSetMaxEquip( setId )
+function LSD.GetSetMaxEquip( setId )
+  --     maxEquip: value used by library, is equal to zosMaxEquip except for special cases defined in "customSetData"
+  --  zosMaxEquip: value return by vanilla function "GetItemSetInfo"; returns zero if set does not exist
+  -- returns maxEquip, zosMaxEquip
   return GetMaxEquip( setId ) 
 end
 
 
 --- Set Type 
-function LibSetDetection.GetSetType( setId ) 
+function LSD.GetSetType( setId )
   return LookupTables:GetSetType( ConvertToUnperfected(setId) ) 
 end
 
@@ -1373,17 +1696,39 @@ local function IsSpecificSetType( setType, setId )
   return LookupTables:GetSetType( ConvertToUnperfected(setId) )  == setType 
 end
 
-function LibSetDetection.IsSetMystical( setId ) 
+function LSD.IsSetMystic( setId ) 
   return IsSpecificSetType( LSD_SET_TYPE_MYSTICAL, ConvertToUnperfected(setId) ) 
 end
 
-function LibSetDetection.IsSetUndaunted( setId ) 
+function LSD.IsSetUndaunted( setId ) 
   return IsSpecificSetType( LSD_SET_TYPE_UNDAUNTED, ConvertToUnperfected(setId) ) 
 end
 
-function LibSetDetection.IsSetAbilityAltering( setId ) 
+function LSD.IsSetAbilityAltering( setId ) 
   return IsSpecificSetType( LSD_SET_TYPE_ABILITY_ALTERING, ConvertToUnperfected(setId) ) 
 end
+
+
+--- Table Utilities  
+function LSD.MergeTables(t1, t2) 
+  return MergeTables(t1, t2) 
+end
+
+function LSD.InvertTable( t )
+  return InvertTable(t) 
+end
+
+--[[ Backwards Compatibility with V4 ]]
+--[[ Will be removed with Game Update 51 ]]
+
+function LSD.IsSetMystical( ... )   
+  return LSD.IsSetMystic( ... )
+end
+
+function LSD.AreUnitDataAvailable( ... ) 
+  return LSD.IsUnitDataAvailable( ... ) 
+end
+
 
 --[[ ----------------------------- ]]
 --[[ -- Backwards Compatibility -- ]]
@@ -1391,7 +1736,7 @@ end
 --[[ --    according to esoui   -- ]]
 --[[ ----------------------------- ]]
 
-function LibSetDetection.GetEquippedSetsTable() 
+function LSD.GetEquippedSetsTable() 
   local PS = PlayerSets
   local returnTable = {}
   for setId, activeType in pairs( PS.activeList ) do 
@@ -1399,7 +1744,7 @@ function LibSetDetection.GetEquippedSetsTable()
     setData.name = GetSetName( setId ) 
     setData.maxEquipped = GetMaxEquip( setId ) 
     setData.numEquipped = PS.numEquipList[setId] 
-    local _, activeOnBody, activeOnFront, activeOnBack = LibSetDetection.ConvertActiveType( activeType)
+    local _, activeOnBody, activeOnFront, activeOnBack = LSD.ConvertActiveType( activeType)
     setData.activeBar = {
         ["body"] = activeOnBody, 
         ["front"] = activeOnFront, 
@@ -1415,15 +1760,38 @@ end
 --[[ ------------------- ]]
 
 local cmdList = {
-  ["equipped"] = "list of the equipped set-pieces for each equipment slot",
-  ["setid"] = "list of setIds, that include the provided search string (input: *search string*)",
-  ["setname"] = "localized name of the set with the provided id (input: *setId*)",
-  ["setdata"] = "overview of equipped set for all available units (optional input: *uniTag* - only output for specific unit)",
-  ["groupsets"] = "overview of all known sets equipped in group with corresponding member",
-  ["debug"] = "list of debug states of library modules",
+  ["incognito"] = {"overview of commands to use the incognito feature"}, 
+  ["incognito help"] = {"Explains the incognito feature and how to use it."}, 
+  ["incognito toggle"] = {"Switches the incognito feature on/off."}, 
+  ["incognito print"] = {"Prints to chat the current white list."}, 
+  ["incognito add"] = {"Adds the set with the provided id to the white list", "*setId*"}, 
+  ["incognito remove"] = {"Removes the set with the provided id from the white list", "*setId*"}, 
+
+  ["equipped"] = {"List of all gear pieces equipped by the player"},
+  ["setdata"] = {"List of equipped set for all available units", "*unitTag (optional)"},
+  ["groupsets"] = {"List of all fully equipped sets in your group with the corresponding member"},
+  ["setid"] = {"List of set IDs whose names contain the specified search string.", "*searchStr*"},
+  ["setname"] = {"Name of the set with the specified setId",  "*setId*"},
+
+  ["debug"] = {"prints debug setting for each module"},
+  ["debug toggle"] = {"toggles selected debug state", "*moduleName* or *moduleAcronym"}, 
 }
 
+local moduleList = {
+  ["BM"] = {"BroadcastManager", },
+  ["CM"] = {"CallbackManager", },
+  ["GM"] = {"GroupManager", },
+  ["SM"] = {"SlotManager", },
+  ["SMP"] = {"SetManager (Player) ", },
+  ["SMG"] = {"SetManager (Groupmember)", },
+  ["IF"] = {"IncognitoFeature",},
+}
 
+local roleList = {
+  [LFG_ROLE_TANK] = {"tank", "red"}, 
+  [LFG_ROLE_HEAL] = {"heal", "green"}, 
+  [LFG_ROLE_DPS] = {"dd", "blue"},
+}
 
 
 SLASH_COMMANDS["/lsd"] = function( input ) 
@@ -1436,12 +1804,89 @@ SLASH_COMMANDS["/lsd"] = function( input )
 
   local cmd = table.remove(param, 1) 
   
+  local function _printCmd(cmdName)
+    local cmdData = cmdList[cmdName]  
+    local cmdStr = ColorString(zo_strformat("/lsd <<1>> <<2>>", cmdName, cmdData[2] or ""), "cyan") 
+    d( zo_strformat("<<1>> - <<2>>", cmdStr, cmdData[1]) )
+  end
+
   if not cmd or cmd == ""  then 
-    d( zo_strformat("[<<1>>] <<2>>", ColorString("LibSetDetection", "green"), "command overview") ) 
-    for cmdName, cmdInfo in pairs( cmdList ) do 
-      d( zo_strformat("<<1>> - <<2>>", ColorString(cmdName, "cyan"), cmdInfo) )
-    end
+
+    --- overview of all available commands 
+    d( zo_strformat("[<<1>>] <<2>>", ColorString("LibSetDetection", "cyan"), "Overview of available chat commands") ) 
+    d( ColorString("-- Incognito Feature --", "orange"))
+    _printCmd( "incognito help" )
+    _printCmd( "incognito toggle" )
+    _printCmd( "incognito print" )
+    _printCmd( "incognito add" )
+    _printCmd( "incognito remove" )
+    --_printCmd( "debug" )
+    --_printCmd( "debug toggle" )
+    d( ColorString("-- Output Data --", "orange"))
+    _printCmd( "equipped" )
+    _printCmd( "groupsets" )
+    _printCmd( "setdata" )
+    d( ColorString("-- Utility --", "orange"))
+    _printCmd( "setid" )
+    _printCmd( "setname" )
     d("--------------------")
+
+  --- incognito feature 
+  elseif cmd == "incognito" then 
+    if param[1] == "toggle" then 
+      IncognitoFeature.store.enabled = not IncognitoFeature.store.enabled
+      SlotManager:UpdateLoadout()
+      d( zo_strformat("[<<1>>] Incognito Feature was <<2>>!", ColorString("LibSetDetection", "cyan"), ColorString(IncognitoFeature.store.enabled and "activated" or "deactivated", IncognitoFeature.store.enabled and "green" or "red")  ))
+    elseif param[1] == "add" then
+      local setId = tonumber(param[2]) 
+      if setId then -- setId is nil, if param[2] cant be converted to number
+        setId = math.floor(setId) -- make sure only integer values for setIds
+        if setId == 0 or setId == 1 or GetSetName(setId)=="" then 
+          d("invalid setId") 
+        elseif IncognitoFeature.store.exceptions[ setId ]then 
+          d( zo_strformat("[<<1>>] <<2>> (<<3>>) is already on incognito whitelist. ", ColorString("LibSetDetection", "cyan"), ColorString(GetSetName(setId),"orange"), setId ) )
+        else 
+          IncognitoFeature.store.exceptions[ setId ] = true
+          IncognitoFeature:BuildWhiteList()
+          d( zo_strformat("[<<1>>] <<2>> (<<3>>) was added to incognito whitelist. ", ColorString("LibSetDetection", "cyan"), ColorString(GetSetName(setId),"orange"), setId ) )
+        end
+      else 
+        d( zo_strformat("[<<1>>] <<2>>:", ColorString("LibSetDetection", "cyan"), "*setId* must be a number" )) 
+      end
+    elseif param[1] == "remove" then 
+      local setId = tonumber( param[2] )
+      if setId then 
+        setId = math.floor(setId) -- make sure only integer values for setIds 
+        if IncognitoFeature.store.exceptions[ setId ] then 
+          IncognitoFeature.store.exceptions[ setId ] = nil
+          IncognitoFeature:BuildWhiteList() 
+          d( zo_strformat("[<<1>>] <<2>> (<<3>>) was removed from incognito whitelist. ", ColorString("LibSetDetection", "cyan"), ColorString(GetSetName(setId),"orange"), setId ) )
+        else 
+          d( zo_strformat("[<<1>>] <<2>> (<<3>>) was not on incognito whitelist. ", ColorString("LibSetDetection", "cyan"), ColorString(GetSetName(setId),"orange"), setId ) )
+        end
+      else
+        d( zo_strformat("[<<1>>] <<2>>:", ColorString("LibSetDetection", "cyan"), "*setId* must be a number" ))
+      end  
+    elseif param[1] == "print" then 
+      IncognitoFeature:PrintWhiteListToChat()
+    elseif param[1] == "help" then 
+      d( zo_strformat("[<<1>>] <<2>>", ColorString("LibSetDetection", "cyan"), ColorString("Incognito Feature - Help","orange") ).."\n"..
+      ColorString("LibSetDetection", "cyan").." shares your equipped sets with your group when '"..ColorString("LibGroupBroadcast", "cyan").."' is installed. "..
+      "The "..ColorString("Incognito Feature", "orange").." (off by default) can be used to restrict which sets are shared with your group. "..
+      "If enabled, any set not part of the whitelist will be send as 'incognito'. If disabled all sets are shared. Note, that this does not impact received data. "..
+      "Sets can be added and removed from the whitelist with "..ColorString("/lsd incognito add", "cyan").." and "..ColorString("/lsd incognito remove", "cyan").." and the set's id. "..
+      "This library provides many ways to determine setId's, e.g. using the chat command "..ColorString("/lsd setid *searchString*", "cyan").."."..
+      "The current whitelist can be printed to chat using "..ColorString("/lsd incognito print", "cyan")..".")
+    else  -- overview of incognito functions
+      d( zo_strformat("[<<1>>] <<2>>", ColorString("LibSetDetection", "cyan"), "Chat interface for incognito feature:") ) 
+      _printCmd( "incognito help" )
+      _printCmd( "incognito toggle" )
+      _printCmd( "incognito print" )
+      _printCmd( "incognito add" )
+      _printCmd( "incognito remove" )
+    end
+  
+    --- equipped 
   elseif cmd == "equipped" then 
     local OutputSets = function(slotCategory) 
       d("--- "..ColorString(slotCategory, "cyan").." --- ")
@@ -1450,43 +1895,84 @@ SLASH_COMMANDS["/lsd"] = function( input )
         d( zo_strformat("<<1>>: <<2>> (<<3>>)", slotName, ColorString(GetSetName(setId), "orange") , setId ) )
       end  
     end
-    d( zo_strformat("[<<1>>] equipped sets:", ColorString("LibSetDetection", "green") ))
+    d( zo_strformat("[<<1>>] <<2>>:", ColorString("LibSetDetection", "cyan"), cmdList["equipped"][1] ))
     OutputSets( "Body" )  
     OutputSets( "Front" ) 
     OutputSets( "Back" )
-    d("--------------------")
-  elseif cmd == "setid" then
-    if IsString(param[1]) and param[1] ~= "" then 
-      d( zo_strformat("[<<1>>] searching for sets with '<<2>>'...", ColorString("LibSetDetection", "green"), ColorString(param[1], "cyan") ) )
-      local foundMatch = false
-      for ii=0,1023,1 do 
-        local setName = GetSetName(ii)
-        if string.find( string.lower(setName), string.lower(param[1]) ) then 
-          d( zo_strformat("(<<1>>) - <<2>>", ii, ColorString(setName, "orange") ) )
-          foundMatch = true
-        end
-      end
-      if not foundMatch then 
-        d( ColorString("no match found", "cyan")  )
-      end
-    else 
-      d( zo_strformat("[<<1>>] invalid input for search", ColorString("LibSetDetection", "cyan") ))
+    d( "--------------------------------------------------")
+  
+    --- groupsets
+  elseif cmd == "groupsets" then 
+    local groupSets = LSD.GetGroupSets() 
+    local sortedGroupSets = {}
+    for setId, _ in pairs(groupSets) do 
+      table.insert(sortedGroupSets, setId)
     end
+    table.sort(sortedGroupSets)
+    d( zo_strformat("[<<1>>] <<2>>:", ColorString("LibSetDetection", "cyan"), cmdList["groupsets"][1] ) )
+    for _, setId in pairs(sortedGroupSets) do 
+      d("--------------------")
+      d( zo_strformat("[<<1>>] <<2>>", setId, ColorString(GetSetName(setId), "orange") ) )
+      local unitList = InvertTable( groupSets[setId] )
+      local counter = 0
+      for i=1,LARGE_GROUP_SIZE_THRESHOLD do 
+        local unitTag = "group"..tostring(i) 
+        if unitList[unitTag] then   
+          local role = GetGroupMemberSelectedRole(unitTag) 
+          local tagStr = zo_strformat("<<1>> - <<2>>", unitTag, roleList[role][1])
+          counter = counter + 1
+          d( zo_strformat("<<1>> [<<2>>] <<3>> / <<4>>", counter, ColorString(tagStr, roleList[role][2]), GetUnitDisplayName(unitTag), GetUnitName(unitTag) ) )
+        end
+      end      
+    end
+    d( "--------------------------------------------------")
+
+  --- setid 
+  elseif cmd == "setid" then
+    local searchStr = param[1]
+    d( zo_strformat("[<<1>>] Searching for sets with '<<2>>' in their name...", ColorString("LibSetDetection", "cyan"), ColorString(searchStr, "cyan") ) )
+    local foundMatch = false
+    local counter = 0 
+    for i=0,1023 do 
+      local setName = GetSetName(i)
+      if setName ~= "" and string.find( string.lower(setName), string.lower(searchStr) ) then 
+        d( zo_strformat("[<<1>>] <<2>>", i, ColorString(setName, "orange") ) )
+        counter = counter + 1
+        foundMatch = true
+      end
+    end
+    if foundMatch then 
+      local matchStr = counter == 1 and " match" or " matches"
+      d( zo_strformat("<<1>> found with the search string '<<2>>'.", ColorString(tostring(counter)..matchStr, "green"), ColorString(searchStr, "cyan")  ) )
+    else 
+      d( zo_strformat("<<1>> found for search string '<<2>>'.", ColorString("No matches", "red"), ColorString(searchStr, "cyan")  ) )
+    end
+    d( "--------------------------------------------------")
+
+  --- setname
   elseif cmd == "setname" then 
     local setId = tonumber(param[1])
     if IsNumber(setId) then  
-      local setName = GetSetName(setId) 
-      if setName == "" then 
-        d( zo_strformat("[<<1>>] no set name found for <<2>> = <<3>>", ColorString("LibSetDetection", "green"), ColorString("setId", "cyan"), setId) ) 
+      if setId == 0 then 
+        d( zo_strformat("[<<1>>] <<2>> (<<3>>) - Custom name of LSD used for gear <<4>>.", ColorString("LibSetDetection", "cyan"), ColorString(GetSetName(setId), "orange"), setId, ColorString("without a set", "cyan")) )
+      elseif setId == 1 then 
+        d( zo_strformat("[<<1>>] <<2>> (<<3>>) - Custom name of LSD used for sets hidden via the <<4>>.", ColorString("LibSetDetection", "cyan"), ColorString(GetSetName(setId), "orange"), setId, ColorString("incognito feature", "cyan")) )
       else 
-        d( zo_strformat("[<<1>>] <<2>> (<<3>>)", ColorString("LibSetDetection", "green"), ColorString(GetSetName(setId), "orange"), setId) ) 
+        local setName = GetSetName(setId) 
+        if setName == "" then 
+          d( zo_strformat("[<<1>>] No official set was found with <<2>>.", ColorString("LibSetDetection", "cyan"), ColorString("setId = "..tostring(setId), "cyan")) ) 
+        else 
+          d( zo_strformat("[<<1>>] <<2>> (<<3>>)", ColorString("LibSetDetection", "cyan"), ColorString(GetSetName(setId), "orange"), setId) ) 
+        end
       end
     else 
-      d( zo_strformat("[<<1>>] invalid input for search", ColorString("LibSetDetection", "green") ))
+      d( zo_strformat("[<<1>>] Provided setId must be a number. ", ColorString("LibSetDetection", "cyan") ))
     end
+
+  --- setdata
   elseif cmd == "setdata" then
     local function OutputSetData(unitTag)
-      local setData = LibSetDetection.GetUnitSetData(unitTag) 
+      local setData = LSD.GetUnitSetData(unitTag) 
       --d( ColorString(zo_strformat("<<1>> (<<2>>):", GetUnitName(unitTag), unitTag), "green")) 
       local numEquip = {0,0,0}
       for setId, setInfo in pairs(setData) do
@@ -1503,7 +1989,7 @@ SLASH_COMMANDS["/lsd"] = function( input )
     end
     
     if IsString(param[1]) and param[1] ~= "" then 
-      if LibSetDetection.AreUnitDataAvailable(param[1]) then 
+      if LSD.AreUnitDataAvailable(param[1]) then 
         d( zo_strformat("[<<1>>] setdata for <<2>> (<<3>>)", ColorString("LibSetDetection", "green"), ColorString(GetUnitName(param[1]), "green"), ColorString(param[1], "green") ))
         OutputSetData(param[1])  
       else 
@@ -1511,46 +1997,30 @@ SLASH_COMMANDS["/lsd"] = function( input )
       end    
     else 
       d( zo_strformat("[<<1>>] setdata for <<2>> ", ColorString("LibSetDetection", "green"), ColorString("all units", "green") ))
-      local unitList = LibSetDetection.GetAvailableUnitTags() 
+      local unitList = LSD.GetAvailableUnitTags() 
       for _, unitTag in ipairs(unitList) do 
         d( zo_strformat("Unit: <<1>> (<<2>>)", ColorString(GetUnitName(unitTag), "green"), ColorString(unitTag, "green") ) )  
         OutputSetData(unitTag)
         d( "--------------------------------------------------")
       end
     end
-  elseif cmd == "groupsets" then
-    local groupSets = {} 
-    for _, unitTag in pairs(LibSetDetection.GetAvailableUnitTags()) do 
-      if unitTag ~= "player" then 
-        local unitSets = LibSetDetection.GetUnitSetData(unitTag)  
-        for setId, setData in pairs(unitSets) do 
-          if setData.activeType > 0 then 
-            groupSets[setId] = groupSets[setId] or {}
-            table.insert( groupSets[setId], unitTag)
-          end
-        end
-      end
-    end
-    d( zo_strformat("[<<1>>] all sets equipped in <<2>> ", ColorString("LibSetDetection", "green"), ColorString("group", "green") ) )
-    for setId, units in pairs(groupSets) do 
-      d( zo_strformat("[<<1>>] <<2>>:", setId, ColorString(GetSetName(setId), "orange") ) )
-      for key, unitTag in pairs(units) do 
-        d( zo_strformat("   <<1>>. <<2>> (<<3>>)", key, ColorString(GetUnitName(unitTag), "green"), ColorString(unitTag, "green") ) )   
-      end
-      d( "--------------------------------------------------")
-    end
+
+  
+
   elseif cmd == "debug" then 
     if param[1] == "toggle" then 
       libDebug = not libDebug 
       d( zo_strformat("[<<1>>] Library debug state switched: <<2>>", ColorString("LibSetDetection", "green"), ColorString(libDebug and "on" or "off", "orange") ) )
     else 
+      -- print all debug states 
       d( zo_strformat("[<<1>>] Library debug state: <<2>>", ColorString("LibSetDetection", "green"), ColorString(tostring(libDebug), "orange") ) )  
-      d( zo_strformat("<<1>>: <<2>>", ColorString("BroadcastManager", "cyan"), ColorString(tostring(BroadcastManager.debug), "orange") ) ) 
-      d( zo_strformat("<<1>>: <<2>>", ColorString("CallbackManager", "cyan"), ColorString(tostring(CallbackManager.debug), "orange") ) ) 
-      d( zo_strformat("<<1>>: <<2>>", ColorString("GroupManager", "cyan"), ColorString(tostring(GroupManager.debug), "orange") ) ) 
-      d( zo_strformat("<<1>>: <<2>>", ColorString("SetManager - Player", "cyan"), ColorString(tostring(PlayerSets.debug), "orange") ) ) 
-      d( zo_strformat("<<1>>: <<2>>", ColorString("SetManager - Group", "cyan"), ColorString(tostring(EmptySetManager.debug), "orange") ) ) 
-      d( zo_strformat("<<1>>: <<2>>", ColorString("SlotManager", "cyan"), ColorString(tostring(SlotManager.debug), "orange") ) ) 
+      d( zo_strformat("<<1>>: <<2>>", ColorString("BroadcastManager (BM)", "cyan"), ColorString(tostring(BroadcastManager.debug), "orange") ) ) 
+      d( zo_strformat("<<1>>: <<2>>", ColorString("CallbackManager (CM)", "cyan"), ColorString(tostring(CallbackManager.debug), "orange") ) ) 
+      d( zo_strformat("<<1>>: <<2>>", ColorString("GroupManager (GM)", "cyan"), ColorString(tostring(GroupManager.debug), "orange") ) ) 
+      d( zo_strformat("<<1>>: <<2>>", ColorString("SetManager - Player (player)", "cyan"), ColorString(tostring(PlayerSets.debug), "orange") ) ) 
+      d( zo_strformat("<<1>>: <<2>>", ColorString("SetManager - Group (group)", "cyan"), ColorString(tostring(EmptySetManager.debug), "orange") ) ) 
+      d( zo_strformat("<<1>>: <<2>>", ColorString("SlotManager (SM)", "cyan"), ColorString(tostring(SlotManager.debug), "orange") ) ) 
+      d( zo_strformat("<<1>>: <<2>>", ColorString("IncognitoFeature (IF) ", "cyan"), ColorString(tostring(IncognitoFeature.debug), "orange") ) ) 
     end
   else 
     if cmd == "dev" then--and libDebug then 

@@ -1,4 +1,4 @@
-GF = GroupFinderPlus
+local GF = GroupFinderPlus
 
 function GF:AllowAllRoles()
     if not GF.Settings.AllowAllRoles then return end

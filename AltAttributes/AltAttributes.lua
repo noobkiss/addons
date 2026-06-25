@@ -6,6 +6,7 @@ local SETTINGS
 local function getWidth()
     return zo_clamp(GuiRoot:GetWidth() * .25, 300, 600)
 end
+
 -------------------------------------
 --Base bar--
 -------------------------------------
@@ -33,8 +34,6 @@ function StandardBar:Initialize(unitTag, powerType, topLevelCtrl)
     local powerUpdateEventHandler = ZO_MostRecentPowerUpdateHandler:New("ALTATTR_Bar"..unitTag..powerType, PowerUpdateHandlerFunction)
     powerUpdateEventHandler:AddFilterForEvent(REGISTER_FILTER_POWER_TYPE, powerType)
     powerUpdateEventHandler:AddFilterForEvent(REGISTER_FILTER_UNIT_TAG, unitTag)
-    --self.control:RegisterForEvent(EVENT_PLAYER_ACTIVATED, function() self:UpdateWidth() end)
-    --self.control:RegisterForEvent(EVENT_SCREEN_RESIZED, function() self:UpdateWidth() end)
     self.control:RegisterForEvent(EVENT_PLAYER_ALIVE, function() self:Refresh() end)
 
     self:Refresh(true)
@@ -130,6 +129,7 @@ end
 function StandardBar:Hide()
     self.control:SetHidden(true)
 end
+
 -------------------------------------
 --Reversed bar--
 -------------------------------------
@@ -150,156 +150,6 @@ function ReversedBar:ApplyStyle()
     ApplyTemplateToControl(self.attrBar, ZO_GetPlatformTemplate("ZO_PlayerAttributeStatusBar"))
     ApplyTemplateToControl(self.control, ZO_GetPlatformTemplate("ALTATTR_BarReversed"))
 end
--------------------------------------
---HP shielded bar --
--------------------------------------
--- local ShieldedBar = StandardBar:Subclass()
--- function ShieldedBar:New(...)
---     return StandardBar.New(self, ...)
--- end
-
--- function ShieldedBar:Initialize(unitTag, powerType, topLevelCtrl)
---     self.curShield = 0
---     self.curHP = 0
---     self.maxHP = 0
---     self.hasTrauma = false  -- Trauma 状态标记
-
---     StandardBar.Initialize(self, unitTag, powerType, topLevelCtrl)
-
---     -- 保存原始渐变色 (红色)
---     self.originalGradientColors = {
---         ZO_ColorDef:New(ZO_POWER_BAR_GRADIENT_COLORS[powerType][1]:UnpackRGB()),
---         ZO_ColorDef:New(ZO_POWER_BAR_GRADIENT_COLORS[powerType][2]:UnpackRGB())
---     }
-    
---     -- Trauma 时的渐变色 RGB(51, 171, 173) 青色
---     local traumaColor1 = ZO_ColorDef:New(51/255, 171/255, 173/255)
---     local traumaColor2 = ZO_ColorDef:New(51/255, 171/255, 173/255)
---     self.traumaGradientColors = { traumaColor1, traumaColor2 }
-
---     self.shieldBar = CreateControlFromVirtual("ALTATTR_Shield"..unitTag..powerType, self.attrBar, "ALTATTR_ShieldBar")
---     local SHIELD_COLOR = ZO_ColorDef:New(1, 0.49, 0.13, 0.50)
---     self.shieldBar:SetColor(SHIELD_COLOR:UnpackRGBA())
---     self.shieldBar:SetHeight(self.control:GetHeight())
---     self:OnUpdateShield(0, true)
-
---     -- Trauma Bar
---     self.curTrauma = 0
-
---     self.traumaBar = CreateControlFromVirtual("ALTATTR_Trauma"..unitTag..powerType, self.attrBar, "ALTATTR_ShieldBar")
-
---     local TRAUMA_COLOR = ZO_ColorDef:New(0.8, 0.8, 0.8, 1)
---     self.traumaBar:SetColor(TRAUMA_COLOR:UnpackRGBA())
---     self.traumaBar:SetHeight(self.control:GetHeight())
-
---     -- 层级：在 shield 上面
---     self.traumaBar:SetHidden(true)
-
---     self:OnUpdateTrauma(0, true)
-
---     local function onVisualPower(_, unitTag, unitAttributeVisual, statType, attributeType, powerType, oldValue, newValue, oldMaxValue, newMaxValue)
---         local value = oldMaxValue == nil and oldValue or newValue
-
---         if unitAttributeVisual == ATTRIBUTE_VISUAL_POWER_SHIELDING then
---             self:OnUpdateShield(value, false)
-
---         elseif unitAttributeVisual == ATTRIBUTE_VISUAL_TRAUMA then
---             self:OnUpdateTrauma(value, false)
---         end
---     end
-
---     local function onVisualPowerRemoved(_, unitTag, unitAttributeVisual, statType, attributeType, powerType, value, maxValue)
---         if unitAttributeVisual == ATTRIBUTE_VISUAL_POWER_SHIELDING then
---             self:OnUpdateShield(0, false)
-
---         elseif unitAttributeVisual == ATTRIBUTE_VISUAL_TRAUMA then
---             self:OnUpdateTrauma(0, false)
---         end
---     end
-
---     topLevelCtrl:RegisterForEvent(EVENT_UNIT_ATTRIBUTE_VISUAL_ADDED, onVisualPower)
---     topLevelCtrl:AddFilterForEvent(EVENT_UNIT_ATTRIBUTE_VISUAL_ADDED, REGISTER_FILTER_UNIT_TAG, unitTag)
---     topLevelCtrl:RegisterForEvent(EVENT_UNIT_ATTRIBUTE_VISUAL_UPDATED, onVisualPower)
---     topLevelCtrl:AddFilterForEvent(EVENT_UNIT_ATTRIBUTE_VISUAL_UPDATED, REGISTER_FILTER_UNIT_TAG, unitTag)
---     topLevelCtrl:RegisterForEvent(EVENT_UNIT_ATTRIBUTE_VISUAL_REMOVED, onVisualPowerRemoved)
---     topLevelCtrl:AddFilterForEvent(EVENT_UNIT_ATTRIBUTE_VISUAL_REMOVED, REGISTER_FILTER_UNIT_TAG, unitTag)
--- end
-
--- -- 更新 Trauma 颜色效果（只改血量条，护盾不变）
--- function ShieldedBar:UpdateTraumaColor()
---     if self.hasTrauma then
---         ZO_StatusBar_SetGradientColor(self.attrBar, self.traumaGradientColors)
---     else
---         ZO_StatusBar_SetGradientColor(self.attrBar, self.originalGradientColors)
---     end
--- end
-
--- function ShieldedBar:OnUpdateTrauma(value, force)
---     local previousHasTrauma = self.hasTrauma
---     self.curTrauma = value or 0
---     self.hasTrauma = self.curTrauma > 0
-    
---     -- Trauma 状态变化时更新血量条颜色
---     if previousHasTrauma ~= self.hasTrauma then
---         self:UpdateTraumaColor()
---     end
-    
---     ZO_StatusBar_SmoothTransition(self.traumaBar, self.curTrauma, self.maxHP, force)
---     self:UpdateResourceNumbers(self.curHP, self.maxHP, self.curShield, self.curTrauma)
--- end
-
--- function ShieldedBar:OnPowerUpdate(health, maxHealth, force)
---     self.curHP = health
---     self.maxHP = maxHealth
---     ZO_StatusBar_SmoothTransition(self.attrBar, health, maxHealth, force)
---     self:UpdateResourceNumbers(self.curHP, self.maxHP, self.curShield, self.curTrauma)
--- end
-
--- function ShieldedBar:OnUpdateShield(shield, force)
---     self.curShield = shield
---     ZO_StatusBar_SmoothTransition(self.shieldBar, shield, self.maxHP, force)
---     self:UpdateResourceNumbers(self.curHP, self.maxHP, self.curShield, self.curTrauma)
--- end
-
--- function ShieldedBar:UpdateResourceNumbers(health, maxHealth, shield, trauma)
---     if (shield and shield > 0) or (trauma and trauma > 0) then
---         local text = ZO_AbbreviateAndLocalizeNumber(health, NUMBER_ABBREVIATION_PRECISION_LARGEST_UNIT, false) .. "["
-        
---         if shield and shield > 0 then
---             text = text .. ZO_AbbreviateAndLocalizeNumber(shield, NUMBER_ABBREVIATION_PRECISION_LARGEST_UNIT, false)
---         end
-        
---         if trauma and trauma > 0 then
---             text = text .. "-" .. ZO_AbbreviateAndLocalizeNumber(trauma, NUMBER_ABBREVIATION_PRECISION_LARGEST_UNIT, false)
---         end
-        
---         text = text .. "]"
-        
---         self.attrText:SetText(text)
---         self.attrTextPercent:SetText(self:FormatPercent(health, maxHealth))
---     else
---         StandardBar.UpdateResourceNumbers(self, health, maxHealth)
---     end
--- end
-
--- function ShieldedBar:ApplyStyle()
---     StandardBar.ApplyStyle(self)
---     ApplyTemplateToControl(self.shieldBar, ZO_GetPlatformTemplate("ZO_PlayerAttributeStatusBar"))
--- end
-
--- function ShieldedBar:SetHeight(value)
---     StandardBar.SetHeight(self, value)
---     if self.shieldBar then
---         if self.shieldBar:GetHeight() ~= value then
---             self.shieldBar:SetHeight(value)
---         end
---     end
---     if self.traumaBar then
---         if self.traumaBar:GetHeight() ~= value then
---             self.traumaBar:SetHeight(value)
---         end
---     end
--- end
 
 -------------------------------------
 --HP shielded bar --
@@ -316,7 +166,7 @@ function ShieldedBar:Initialize(unitTag, powerType, topLevelCtrl)
 
     StandardBar.Initialize(self, unitTag, powerType, topLevelCtrl)
 
-    -- Trauma Bar - 和护盾一样独立显示
+    -- Trauma Bar
     self.curTrauma = 0
     self.traumaBar = CreateControlFromVirtual("ALTATTR_Trauma"..unitTag..powerType, self.attrBar, "ALTATTR_ShieldBar")
     local TRAUMA_COLOR = ZO_ColorDef:New(51/255, 171/255, 173/255)
@@ -324,6 +174,7 @@ function ShieldedBar:Initialize(unitTag, powerType, topLevelCtrl)
     self.traumaBar:SetHeight(self.control:GetHeight())
     self:OnUpdateTrauma(0, true)
 
+    -- Shield Bar
     self.shieldBar = CreateControlFromVirtual("ALTATTR_Shield"..unitTag..powerType, self.attrBar, "ALTATTR_ShieldBar")
     local SHIELD_COLOR = ZO_ColorDef:New(1, 0.49, 0.13, 1)
     self.shieldBar:SetColor(SHIELD_COLOR:UnpackRGBA())
@@ -359,20 +210,15 @@ function ShieldedBar:Initialize(unitTag, powerType, topLevelCtrl)
     topLevelCtrl:RegisterForEvent(EVENT_UNIT_ATTRIBUTE_VISUAL_REMOVED, onVisualPowerRemoved)
     topLevelCtrl:AddFilterForEvent(EVENT_UNIT_ATTRIBUTE_VISUAL_REMOVED, REGISTER_FILTER_UNIT_TAG, unitTag)
 
-     -- 关键：每次加载完成后，强制同步一下游戏数据
     topLevelCtrl:RegisterForEvent(EVENT_PLAYER_ACTIVATED, function()
-        -- 重新获取当前的血量、护盾、Trauma 的真实值
         local health, maxHealth = GetUnitPower(self.unitTag, self.powerType)
         self.curHP = health
         self.maxHP = maxHealth
         ZO_StatusBar_SmoothTransition(self.attrBar, health, maxHealth, true)
-        
-        -- 注意：这里不能直接清零，而是要从游戏获取真实值
-        -- 但 Trauma 和护盾没有直接的 API 获取，所以只能清零
-        -- 因为离开副本后这些值应该都是 0
-        self:OnUpdateTrauma(value, true)
-        -- self:OnUpdateShield(value, true)
-        
+
+        self:OnUpdateTrauma(0, true)
+        self:OnUpdateShield(0, true)
+
         self:UpdateResourceNumbers(health, maxHealth, self.curShield, self.curTrauma)
     end)
 end
@@ -399,17 +245,17 @@ end
 function ShieldedBar:UpdateResourceNumbers(health, maxHealth, shield, trauma)
     if (shield and shield > 0) or (trauma and trauma > 0) then
         local text = ZO_AbbreviateAndLocalizeNumber(health, NUMBER_ABBREVIATION_PRECISION_LARGEST_UNIT, false) .. "["
-        
+
         if shield and shield > 0 then
             text = text .. ZO_AbbreviateAndLocalizeNumber(shield, NUMBER_ABBREVIATION_PRECISION_LARGEST_UNIT, false)
         end
-        
+
         if trauma and trauma > 0 then
             text = text .. "-" .. ZO_AbbreviateAndLocalizeNumber(trauma, NUMBER_ABBREVIATION_PRECISION_LARGEST_UNIT, false)
         end
-        
+
         text = text .. "]"
-        
+
         self.attrText:SetText(text)
         self.attrTextPercent:SetText(self:FormatPercent(health, maxHealth))
     else
@@ -426,16 +272,13 @@ end
 function ShieldedBar:SetHeight(value)
     StandardBar.SetHeight(self, value)
     if self.shieldBar then
-        if self.shieldBar:GetHeight() ~= value then
-            self.shieldBar:SetHeight(value)
-        end
+        self.shieldBar:SetHeight(value)
     end
     if self.traumaBar then
-        if self.traumaBar:GetHeight() ~= value then
-            self.traumaBar:SetHeight(value)
-        end
+        self.traumaBar:SetHeight(value)
     end
 end
+
 -------------------------------------
 -- --
 -------------------------------------
@@ -456,13 +299,13 @@ function AltAttributes_Initialize(topLevelCtrl)
             ZO_PlayerAttributeMagicka:SetHidden(true)
             ZO_PlayerAttributeStamina:SetHidden(true)
 
-            altBarHP = ShieldedBar:New("player", POWERTYPE_HEALTH, topLevelCtrl)
+            local altBarHP = ShieldedBar:New("player", POWERTYPE_HEALTH, topLevelCtrl)
             altBarHP:Show()
 
-            altBarMP = ReversedBar:New("player", POWERTYPE_MAGICKA, topLevelCtrl)
+            local altBarMP = ReversedBar:New("player", POWERTYPE_MAGICKA, topLevelCtrl)
             altBarMP:Show()
 
-            altBarSP = StandardBar:New("player", POWERTYPE_STAMINA, topLevelCtrl)
+            local altBarSP = StandardBar:New("player", POWERTYPE_STAMINA, topLevelCtrl)
             altBarSP:Show()
 
             local function rePosition()
@@ -526,19 +369,16 @@ function AltAttributes_Initialize(topLevelCtrl)
                 Azurah.uiFrames.gamepad['ALTATTR_Container'] = {1, 'Alternative Attributes Bars'}
             end
 
-             -- 玩家死亡时隐藏所有属性条
             local function onPlayerDeath()
                 altBarHP:Hide()
                 altBarMP:Hide()
                 altBarSP:Hide()
             end
 
-            -- 玩家复活时重新显示
             local function onPlayerResurrect()
                 altBarHP:Show()
                 altBarMP:Show()
                 altBarSP:Show()
-                -- 刷新一下数值
                 altBarHP:Refresh(true)
                 altBarMP:Refresh(true)
                 altBarSP:Refresh(true)

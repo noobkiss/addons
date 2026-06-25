@@ -1,3 +1,0 @@
-Big Thanks to 'priom' whos Console Fonts addon was used as a base for this one.
-
-https://www.esoui.com/downloads/info2540-ConsoleFonts.html

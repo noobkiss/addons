@@ -1,8 +1,5 @@
--- =========================================================
--- Feature: GroupFinderPlus Listing Color Pickers (Icon Buttons)
--- =========================================================
-
 local GF = GroupFinderPlus
+
 local WM = WINDOW_MANAGER
 local EM = EVENT_MANAGER
 local NAMESPACE = "GroupFinderPlus_ColorPickers"

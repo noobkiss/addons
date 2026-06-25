@@ -1,4 +1,4 @@
-GF = GroupFinderPlus
+local GF = GroupFinderPlus
 
 function GF:RegisterLAMPanel()
     local LAM = LibAddonMenu2
@@ -11,14 +11,10 @@ function GF:RegisterLAMPanel()
     GF.Settings.CategoriesEnabled = GF.Settings.CategoriesEnabled or {}
     for _, cat in ipairs(GF.Categories) do
         if GF.Settings.CategoriesEnabled[cat.id] == nil then
-            GF.Settings.CategoriesEnabled[cat.id] = true -- default all enabled
+            GF.Settings.CategoriesEnabled[cat.id] = true 
         end
     end
 
-    GF.Settings.AllowAllRoles = GF.Settings.AllowAllRoles ~= nil and GF.Settings.AllowAllRoles or false
-    GF.Settings.HideInsufficientCP = GF.Settings.HideInsufficientCP ~= nil and GF.Settings.HideInsufficientCP or false
-    GF.Settings.HideWTSListings = GF.Settings.HideWTSListings ~= nil and GF.Settings.HideWTSListings or true
-    GF.Settings.TrialsEnabled = GF.Settings.TrialsEnabled or {}
     for short, _ in pairs(GF.Trials) do
         if GF.Settings.TrialsEnabled[short] == nil then
             GF.Settings.TrialsEnabled[short] = true
@@ -67,7 +63,7 @@ function GF:RegisterLAMPanel()
 		{
 			type = "checkbox",
 			name = "Show Instance Name in Tooltip",
-			tooltip = "Switch to enable\disable showing localized target instance name in a tooltip.",
+			tooltip = "Switch to enable/disable showing localized target instance name in a tooltip.",
 			getFunc = function() return GF.Settings.ShowInstanceTooltip end,
 			setFunc = function(value)
 				GF.Settings.ShowInstanceTooltip = value

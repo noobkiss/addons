@@ -10,7 +10,6 @@ function Fontaccessibility:OnLoaded( event, addon )
         return
     end
 
-
     LMP:Register( 'font', 'DejaVu Sans',              [[fontaccessibility/fonts/dejavusans.ttf]]                )
     LMP:Register( 'font', 'DejaVu Sans Bold',         [[fontaccessibility/fonts/dejavusans-bold.ttf]]           )
     LMP:Register( 'font', 'DejaVu Sans BoldOblique',  [[fontaccessibility/fonts/dejavusans-boldoblique.ttf]]    )

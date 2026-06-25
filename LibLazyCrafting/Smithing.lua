@@ -24,7 +24,7 @@ if not LibLazyCrafting:RegisterWidget(widgetType, widgetVersion) then return  en
 local LLC = LibLazyCrafting
 local throw = LLC.LLCThrowError
 if GetDisplayName() == "@Dolgubon" then
-	DolgubonGlobalDebugOutput = d
+	-- DolgubonGlobalDebugOutput = d
 end
 local function dbug(...)
 	-- d(...)
@@ -1784,7 +1784,7 @@ local function compileImprovementRequirements(request, requirements)
 	if request.equipCreated then
 		return requirements
 	end
-	local currentQuality = GetItemQuality(request.ItemBagID, request.ItemSlotID)
+	local currentQuality = GetItemFunctionalQuality(request.ItemBagID, request.ItemSlotID)
 	local improvementLevel = getImprovementLevel(station)
 
 	for i  = currentQuality, request.quality - 1 do
@@ -2153,16 +2153,19 @@ local function computeLinkParticulars(requestTable, link)
 	local enchantLvl = 0
 	if requestTable.dualEnchantingSmithing then
 		if requestTable.link then
-			-- extract link portions needed
 		else
+			-- extract link portions needed
 			local essence, potency = LibLazyCrafting.getGlyphInfo()
 			-- first, find potency parity
 			local potencyId = requestTable.potencyItemID
 			local essenceId = requestTable.essenceItemID
+			local aspectId  = requestTable.aspectItemID
 			local parity
+			local enchantLevel
 			for i = 1, #potency do 
 				if potency[i][2]==potencyId then
 					parity = potency[i][1]
+					enchantLevel = potency[i].lvl or potency[i].cp
 				end
 			end
 			for i = 1, #essence do
@@ -2175,6 +2178,8 @@ local function computeLinkParticulars(requestTable, link)
 				end
 			end
 
+			enchantCPQuality, enchantLvl = LibLazyCrafting.getGlyphQualityInfo(requestTable.isCP,enchantLevel,LibLazyCrafting.getAspectResultQuality(aspectId))
+			-- LibLazyCrafting.enchantCPQualityInfo
 			-- compute link portions needed
 			-- 1. get table from enchanting
 			-- 2. loop through to find what's needed
