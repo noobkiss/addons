@@ -1,0 +1,8 @@
+## Title: |c66CCFFQuickCustomBar|r
+## Author: |cFFFFFFnoobkiss|r
+## Version: 1.0.0
+## APIVersion: 101047 101050
+## SavedVariables: QuickCustomBarSavedVariables
+
+QuickCustomBar.xml
+QuickCustomBar.lua
