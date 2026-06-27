@@ -1,8 +1,8 @@
 ## Title: |cff99ddContainerz|r
 ## Description: Automatically open all containers in your inventory at once with a single click or by pressing a single key that you define through a keybind.
-## Version: 1.3.4
+## Version: 1.3.5
 ## APIVersion: 101050
-## AddOnVersion: 010304
+## AddOnVersion: 010305
 ## Author: |c00A313Teebow Ganx|r
 ## SavedVariables: ContainerzSavedVars
 ## DependsOn: LibAddonMenu-2.0>=40

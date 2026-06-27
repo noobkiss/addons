@@ -1,7 +1,7 @@
 Containerz = Containerz or {}
 
 Containerz.name = "Containerz"
-Containerz.version = "1.3.4"
+Containerz.version = "1.3.5"
 Containerz.displayName = "|cff99ddContainerz|r"
 Containerz.author = "|c00FF00Teebow Ganx|r"
 Containerz.website = "https://www.youtube.com/channel/UCqE9Vi36WzTJBBbo9-G40bg"
@@ -47,6 +47,7 @@ local TRANSMUTATION_GEODES = {
   [134623] = 10, -- Uncracked Transmutation Geode (2-10)
   [171531] = 3, -- Transmutation Geode (3)
   [211304] = 25, -- Transmutation Geode (25)
+  [211305] = 100, -- Transmutation Geode (100)
 }
 
 ZO_CreateStringId("SI_KEYBINDINGS_CATEGORY_CONTAINERZ", Containerz.displayName)
