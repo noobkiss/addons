@@ -1,7 +1,7 @@
 MuchSmarterAutoLoot = MuchSmarterAutoLoot or {}
 local MSAL = MuchSmarterAutoLoot
-MSAL.version = "8.0.7"
-MSAL.addonVersion = 80007
+MSAL.version = "8.0.8"
+MSAL.addonVersion = 80008
 MSAL.author = "Lykeion"
 
 local MSALSettingPanel = {}
@@ -897,20 +897,21 @@ local function OnInventoryUpdate(_, bagId, slotId, _, _, _, _)
     local isQuest = false -- unavailable
     local itemType, specializedItemType = GetItemLinkItemType(link)
 
-    
-    if not db.legacyMode and not IsLootActive() and
-        not isCrafted 
-        -- and GetItemCreatorName(bagId, slotId) == GetUnitName("player") 
-        then
-        -- Exclude crafting items made by the player
-        if isContainer and IsCraftingWritRewardContainer(name) then
-            DebugLog("craft container detected")
-            isUnboxingCraftReward = true
-            if WritCreater or SimpleDailyCraft then
-                local addonName = (WritCreater and "LWC") or (SimpleDailyCraft and "SDC")
-                chatlogSuffix = zo_strformat(GetString(MSAL_WRIT_REWARD_HANDOFF), addonName)
-            end
+
+    -- Writ reward container handoff
+    if not IsLootActive() and isContainer and IsCraftingWritRewardContainer(name) then
+        DebugLog("craft container detected")
+        isUnboxingCraftReward = true
+        if WritCreater or SimpleDailyCraft then
+            local addonName = (WritCreater and "LWC") or (SimpleDailyCraft and "SDC")
+            chatlogSuffix = zo_strformat(GetString(MSAL_WRIT_REWARD_HANDOFF), addonName)
         end
+    end
+
+    if not db.legacyMode and not IsLootActive() and
+        not isCrafted
+        -- and GetItemCreatorName(bagId, slotId) == GetUnitName("player")
+        then
         -- junk whitelist items: always kept and marked as junk
         if itemOnList(link, WLIST_JUNK_TOKEN) then
             if CanItemBeMarkedAsJunk(bagId, slotId) then
@@ -6573,43 +6574,57 @@ local function printAllZoneId(targetZoneIndex)
     return results
 end
 
-function MSAL.testProcess(itemlink)
-    local name = GetItemLinkName(itemlink)
+function MSAL.testProcess(itemlinks)
+    for _, itemlink in ipairs(itemlinks) do
+        local name = GetItemLinkName(itemlink)
 
-    local itemType, specializedItemType = GetItemLinkItemType(itemlink)
-    local quality = GetItemLinkDisplayQuality(itemlink)
-    local isStolen = IsItemLinkStolen(itemlink)
-    local isQuest = false
-    local lootType = 0
-    local verdict = nil
+        local itemType, specializedItemType = GetItemLinkItemType(itemlink)
+        local quality = GetItemLinkDisplayQuality(itemlink)
+        local isStolen = IsItemLinkStolen(itemlink)
+        local isQuest = false
+        local lootType = 0
+        local verdict = nil
 
-    -- stolen check
-    if isStolen and (db.stolenRule == "never loot" or db.stolenRule == "never loot strict") then
-        verdict = "blocked by stolen rule (" .. db.stolenRule .. ")"
-    elseif isStolen and db.stolenRule == "follow" and not CanLootWithoutBounty(itemlink) then
-        verdict = "blocked by stolen rule (follow, would commit crime)"
-    -- list checks
-    elseif itemOnList(itemlink, BLIST_TOKEN) then
-        verdict = "blocked by blacklist"
-    elseif itemOnList(itemlink, WLIST_JUNK_TOKEN) then
-        verdict = "whitelist junk"
-    elseif itemOnList(itemlink, WLIST_TOKEN) then
-        verdict = "whitelist"
-    else
-        local filterKey, filterCategory = MSAL.FilterItem(itemlink, isQuest, lootType)
-        if filterKey then
-            verdict = "filter: " .. filterKey .. " (" .. filterCategory .. ")"
+        if isStolen and (db.stolenRule == "never loot" or db.stolenRule == "never loot strict") then
+            verdict = "blocked by stolen rule (" .. db.stolenRule .. ")"
+        elseif isStolen and db.stolenRule == "follow" and not CanLootWithoutBounty(itemlink) then
+            verdict = "blocked by stolen rule (follow, would commit crime)"
+        elseif itemOnList(itemlink, BLIST_TOKEN) then
+            verdict = "blocked by blacklist"
+        elseif itemOnList(itemlink, WLIST_JUNK_TOKEN) then
+            verdict = "whitelist junk"
+        elseif itemOnList(itemlink, WLIST_TOKEN) then
+            verdict = "whitelist"
         else
-            verdict = "no match"
+            local filterKey, filterCategory = MSAL.FilterItem(itemlink, isQuest, lootType)
+            if filterKey then
+                verdict = "filter: " .. filterKey .. " (" .. filterCategory .. ")"
+            else
+                verdict = "未命中"
+            end
         end
-    end
 
-    d(string.format("[AL+] %s - Type:%d SpecType:%d Quality:%d Stolen:%s -> %s",
-        name, itemType, specializedItemType, quality, tostring(isStolen), verdict))
+        -- d(string.format("[AL+] %s - Type:%d SpecType:%d Quality:%d Stolen:%s -> %s",
+        --     name, itemType, specializedItemType, quality, tostring(isStolen), verdict))
+        d(string.format("[AL+] %s -> %s",
+            name, verdict))
+    end
 end
 
 function MSAL.test()
-    MSAL.ListAllBagItems()
+    local arr = {
+        "|H1:item:4439:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0|h|h", -- low cp raw mat
+        "|H1:item:46140:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0|h|h", -- low cp mat
+        "|H1:item:64502:30:1:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0|h|h", -- 160cp mat
+        "|H0:item:166051:363:50:0:0:0:0:0:0:0:0:0:0:0:2048:5:0:0:0:0:0|h|h", -- master sword
+        "|H1:item:190905:0:0:0:0:0:0:0:0:0:0:0:0:0:0:140:0:0:0:0:0|h|h", --mora eye
+        "|H0:item:207093:363:50:0:0:0:0:0:0:0:0:0:0:0:2048:149:0:0:0:0:0|h|h", --perf xoryn axe
+        "|H0:item:206810:362:50:0:0:0:0:0:0:0:0:0:0:0:2048:0:0:0:0:0:0|h|h", --lucent echo ring
+        "|H1:item:171503:0:0:0:0:0:0:0:0:0:0:0:0:0:512:0:0:0:0:0:0|h|h", -- nb unknown motif
+        "|H1:item:157529:5:1:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0|h|h", -- other char unknown motif
+        "|H0:item:211583:363:50:0:0:0:0:0:0:0:0:0:0:0:2048:50:0:0:0:0:0|h|h", -- uncollected item set
+    }
+    MSAL.testProcess(arr)
 end
 
 function MSAL.ListChatWindowChildren()
