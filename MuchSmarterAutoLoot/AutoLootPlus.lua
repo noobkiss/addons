@@ -1,7 +1,7 @@
 MuchSmarterAutoLoot = MuchSmarterAutoLoot or {}
 local MSAL = MuchSmarterAutoLoot
-MSAL.version = "8.0.8"
-MSAL.addonVersion = 80008
+MSAL.version = "8.1.0"
+MSAL.addonVersion = 80100
 MSAL.author = "Lykeion"
 
 local MSALSettingPanel = {}
@@ -76,6 +76,7 @@ local defaults = {
     closeLootWindow = false,
     unwantedItemsDisposer = "none",
     gearDisposer = "none",
+    destroySafeguard = true,
     deconThreshold = 0,
     junkThreshold = 0,
     autoSellJunk = true,
@@ -525,15 +526,15 @@ local function IsItemUnknownByAnyCharacter(item, server, includedCharIds, accoun
     return false
 end
 
-local function trimString(str)
-    local index = string.find(str, "%^")
-    if index then
-        local partBefore = string.sub(str, 1, index - 1)
-        return partBefore
-    else
-        return str
-    end
-end
+-- local function trimString(str)
+--     local index = string.find(str, "%^")
+--     if index then
+--         local partBefore = string.sub(str, 1, index - 1)
+--         return partBefore
+--     else
+--         return str
+--     end
+-- end
 
 local function trimLastCharUTF8(str)
     if #str == 0 then
@@ -552,7 +553,8 @@ local function trimLastCharUTF8(str)
 end
 
 local function getStandardizeLowerName(str)
-    str = trimString(str)
+    -- str = trimString(str)
+    str = LocalizeString(str)
     local result = string.gsub(str, "%s+", "")
     result = string.lower(result)
     return result
@@ -569,7 +571,6 @@ local function normalizeEquipSlot(slot)
 end
 
 local function IsSameSetItem(link1, link2)
-
     -- "|H0:item:162519:363:50:0:0:0:0:0:0:0:0:0:0:0:2048:102:0:0:0:0:0|h|h", "|H1:item:162519:364:50:5365:370:50:2:0:0:0:0:0:0:0:2049:102:0:1:0:377:0|h|h"
     local _, _, _, _, _, setId1 = GetItemLinkSetInfo(link1, false)
     local _, _, _, _, _, setId2 = GetItemLinkSetInfo(link2, false)
@@ -875,7 +876,7 @@ local function OnInventoryUpdate(_, bagId, slotId, _, _, _, _)
     local isSetItem = IsItemLinkSetCollectionPiece(link)
     local isCompanionGear = GetItemLinkActorCategory(link) == GAMEPLAY_ACTOR_CATEGORY_COMPANION
     local itemid = GetItemLinkItemId(link)
-    local name = GetItemLinkName(link)
+    local name = LocalizeString("<<1>>", GetItemLinkName(link))
     local trait = GetItemLinkTraitInfo(link)
     local isOrnate = trait == ITEM_TRAIT_TYPE_ARMOR_ORNATE or trait == ITEM_TRAIT_TYPE_WEAPON_ORNATE or trait ==
                          ITEM_TRAIT_TYPE_JEWELRY_ORNATE
@@ -908,87 +909,105 @@ local function OnInventoryUpdate(_, bagId, slotId, _, _, _, _)
         end
     end
 
-    if not db.legacyMode and not IsLootActive() and
+    if itemOnList(link, WLIST_JUNK_TOKEN) then
+        if CanItemBeMarkedAsJunk(bagId, slotId) then
+            SetItemIsJunk(bagId, slotId, true)
+        end
+        if quality >= db.printDisposeThreshold and not IsLootActive() then
+            BufferedItemDisposeLog(GetString(SI_ITEM_ACTION_MARK_AS_JUNK), link)
+        end
+    end
+
+    if not itemOnList(link, WLIST_JUNK_TOKEN) and
+        not itemOnList(link, WLIST_TOKEN) and
+        not db.legacyMode and not IsLootActive() and
         not isCrafted
         -- and GetItemCreatorName(bagId, slotId) == GetUnitName("player")
-        then
-        -- junk whitelist items: always kept and marked as junk
-        if itemOnList(link, WLIST_JUNK_TOKEN) then
-            if CanItemBeMarkedAsJunk(bagId, slotId) then
-                SetItemIsJunk(bagId, slotId, true)
-            end
-            if quality >= db.printDisposeThreshold then
-                BufferedItemDisposeLog(GetString(SI_ITEM_ACTION_MARK_AS_JUNK), link)
-            end
-            -- whitelisted items always kept
-        elseif not itemOnList(link, WLIST_TOKEN) then
-            local filterKey, _ = MSAL.FilterItem(link, false, nil)
-            if filterKey then
-                DebugLog("Non-loot item matched filter: " .. filterKey)
-                if quality >= db.printLootThreshold then
-                    local entry = link
-                    local postfix = ""
-                    if filterKey == "set" and isUncollected then
-                        postfix = GetString(SI_ITEM_FORMAT_STR_SET_COLLECTION_PIECE_LOCKED)
-                    elseif filterKey == "unresearched" then
-                        postfix = GetString(SI_ITEM_TOOLTIP_RESEARCHABLE)
-                    elseif filterKey == "ornate" then
-                        postfix = GetString(SI_ITEMTRAITTYPE10)
-                        if db.filters.ornate == "loot and junk" then
-                            postfix = postfix .. GetString(SI_LIST_COMMA_SEPARATOR) ..
-                                          GetString(SI_ITEM_ACTION_MARK_AS_JUNK)
-                        end
-                    elseif filterKey == "intricate" then
-                        postfix = GetString(SI_ITEMTRAITTYPE9)
-                    elseif filterKey == "treasures" or filterKey == "trash" then
-                        postfix = GetString(SI_ITEM_ACTION_MARK_AS_JUNK)
-                    elseif filterKey == "recipes" then
-                        if itemType == ITEMTYPE_RACIAL_STYLE_MOTIF or itemType == ITEMTYPE_RECIPE or
-                            itemType == ITEMTYPE_COLLECTIBLE then
-                            if CanItemLinkBeUsedToLearn(link) then
-                                postfix = GetString(SI_ITEM_FORMAT_STR_SET_COLLECTION_PIECE_LOCKED)
-                            elseif LCK then
-                                local unknown, charName = IsItemUnknownByAnyCharacter(link)
-                                if unknown then
-                                    postfix = charName .. GetString(MSAL_SPACE) ..
-                                                  GetString(SI_ITEM_FORMAT_STR_SET_COLLECTION_PIECE_LOCKED)
-                                end
+            then
+        local filterKey, _ = MSAL.FilterItem(link, false, nil)
+        if filterKey then
+            DebugLog("Non-loot item matched filter: " .. filterKey)
+            if quality >= db.printLootThreshold then
+                local entry = link
+                local postfix = ""
+                if filterKey == "set" and isUncollected then
+                    postfix = GetString(SI_ITEM_FORMAT_STR_SET_COLLECTION_PIECE_LOCKED)
+                elseif filterKey == "unresearched" then
+                    postfix = GetString(SI_ITEM_TOOLTIP_RESEARCHABLE)
+                elseif filterKey == "ornate" then
+                    postfix = GetString(SI_ITEMTRAITTYPE10)
+                    if db.filters.ornate == "loot and junk" then
+                        postfix = postfix .. GetString(SI_LIST_COMMA_SEPARATOR) ..
+                                        GetString(SI_ITEM_ACTION_MARK_AS_JUNK)
+                    end
+                elseif filterKey == "intricate" then
+                    postfix = GetString(SI_ITEMTRAITTYPE9)
+                elseif filterKey == "treasures" or filterKey == "trash" then
+                    postfix = GetString(SI_ITEM_ACTION_MARK_AS_JUNK)
+                elseif filterKey == "recipes" then
+                    if itemType == ITEMTYPE_RACIAL_STYLE_MOTIF or itemType == ITEMTYPE_RECIPE or
+                        itemType == ITEMTYPE_COLLECTIBLE then
+                        if CanItemLinkBeUsedToLearn(link) then
+                            postfix = GetString(SI_ITEM_FORMAT_STR_SET_COLLECTION_PIECE_LOCKED)
+                        elseif LCK then
+                            local unknown, charName = IsItemUnknownByAnyCharacter(link)
+                            if unknown then
+                                postfix = charName .. GetString(MSAL_SPACE) ..
+                                                GetString(SI_ITEM_FORMAT_STR_SET_COLLECTION_PIECE_LOCKED)
                             end
                         end
-                    elseif filterKey == "styleMaterials3rd" then
-                        postfix = GetString(SI_ITEMTYPE44)
                     end
-                    if postfix ~= "" then
-                        entry = entry .. GetString(MSAL_SPACE) .. zo_strformat(GetString(SI_QUEST_TYPE_FORMAT), postfix)
-                    end
-                    if chatlogSuffix then
-                        entry = entry .. GetString(MSAL_SPACE) .. chatlogSuffix
-                        chatlogSuffix = nil
-                    end
-                    BufferedItemThroughputLog(entry)
+                elseif filterKey == "styleMaterials3rd" then
+                    postfix = GetString(SI_ITEMTYPE44)
                 end
-            else
-                DebugLog("Non-loot item did not match any filter")
+                if postfix ~= "" then
+                    entry = entry .. GetString(MSAL_SPACE) .. zo_strformat(GetString(SI_QUEST_TYPE_FORMAT), postfix)
+                end
+                if chatlogSuffix then
+                    entry = entry .. GetString(MSAL_SPACE) .. chatlogSuffix
+                    chatlogSuffix = nil
+                end
+                BufferedItemThroughputLog(entry)
             end
-            if not filterKey then
-                -- Item would have been "never looted" - apply disposer (junk only, never destroy)
-                if db.unwantedItemsDisposer == "junk" or db.unwantedItemsDisposer == "destroy" then
+        else
+            DebugLog("Non-loot item did not match any filter")
+        end
+        if not filterKey then
+            local disposerApplied = isGear and db.gearDisposer or db.unwantedItemsDisposer
+            if disposerApplied == "destroy" then
+                local isSafeguarded = db.destroySafeguard and
+                    (isCrafted or
+                    itemType == ITEMTYPE_RACIAL_STYLE_MOTIF or
+                    itemType == ITEMTYPE_RECIPE or
+                    itemType == ITEMTYPE_COLLECTIBLE)
+                if isSafeguarded then
                     if CanItemBeMarkedAsJunk(bagId, slotId) then
                         SetItemIsJunk(bagId, slotId, true)
                     end
                     if quality >= db.printDisposeThreshold then
-                        if not ZO_IsConsoleOrGameCoreUI() then
-                            BufferedItemDisposeLog(GetString(SI_ITEM_ACTION_MARK_AS_JUNK), link)
-                        end
+                        BufferedItemDisposeLog(GetString(SI_ITEM_ACTION_MARK_AS_JUNK), link)
+                        ChatboxLog(zo_strformat(GetString(MSAL_DESTROY_SAFEGUARD), link))
                     end
-                    -- elseif db.unwantedItemsDisposer == "destroy" then
-                    --     -- do nothing in non-loot processing for destroy option to avoid accidentally destroying items from mail
+                else
+                    DestroyItem(bagId, slotId)
+                    if quality >= db.printDisposeThreshold then
+                        BufferedItemDisposeLog(GetString(SI_ITEM_ACTION_DESTROY), link)
+                    end
                 end
-            elseif filterKey == "treasures" or filterKey == "ornate" or filterKey == "trash" then
-                -- "loot and junk" items - mark as junk
-                if db.filters[filterKey] == "loot and junk" then
+            elseif disposerApplied == "junk" or disposerApplied == "decon and junk" then
+                if CanItemBeMarkedAsJunk(bagId, slotId) then
                     SetItemIsJunk(bagId, slotId, true)
                 end
+                if quality >= db.printDisposeThreshold then
+                    if not ZO_IsConsoleOrGameCoreUI() then
+                        BufferedItemDisposeLog(GetString(SI_ITEM_ACTION_MARK_AS_JUNK), link)
+                    end
+                end
+            end
+        elseif filterKey == "treasures" or filterKey == "ornate" or filterKey == "trash" then
+            -- "loot and junk" items - mark as junk
+            if db.filters[filterKey] == "loot and junk" then
+                SetItemIsJunk(bagId, slotId, true)
             end
         end
     end
@@ -1463,7 +1482,7 @@ local function ShouldLootThirdPartyWorthyItem(filterType, link, threshold)
         end
     end
 
-    DebugLog("Got 3rd party pricing request! FilterType: " .. filterType .. ", Item Name: " .. GetItemLinkName(link) ..
+    DebugLog("Got 3rd party pricing request! FilterType: " .. filterType .. ", Item Name: " .. LocalizeString("<<1>>", GetItemLinkName(link)) ..
                  ", saleAvg: " .. tostring(saleAvg) .. ", threshold: " .. threshold)
     if saleAvg then
         if saleAvg >= threshold then
@@ -1914,7 +1933,7 @@ function MSAL.startInterruptionListener(slotIndex)
 end
 
 function MSAL.FilterItem(link, isQuest, lootType)
-    local name = GetItemLinkName(link)
+    local name = LocalizeString("<<1>>", GetItemLinkName(link))
     local itemType, specializedItemType = GetItemLinkItemType(link)
     local quality = GetItemLinkDisplayQuality(link)
     local trait = GetItemLinkTraitInfo(link)
@@ -2432,11 +2451,13 @@ local function OnLootUpdated()
 
         if lootedAs then
             if quality >= db.printLootThreshold then
-                if lootedAs == "stackable junk" then
-                    local part = GetString(SI_ITEM_ACTION_MARK_AS_JUNK) .. GetString(MSAL_SPACE) .. link ..
-                                     GetString(MSAL_SPACE) ..
-                                     zo_strformat(GetString(SI_QUEST_TYPE_FORMAT),
+                if lootedAs == "stackable junk" or lootedAs == "on whitelist junk" then
+                    local part = GetString(SI_ITEM_ACTION_MARK_AS_JUNK) .. GetString(MSAL_SPACE) .. link
+                    if lootedAs == "stackable junk" then
+                        part = part .. GetString(MSAL_SPACE) ..
+                                   zo_strformat(GetString(SI_QUEST_TYPE_FORMAT),
                             GetString(MSAL_LOOT_EXISTING_STACKABLE_ITEM))
+                    end
                     table.insert(stackableJunkParts, part)
                 else
                     local part = link
@@ -2584,7 +2605,7 @@ local function OnLootUpdated()
             local lootId = unwantedLootIdList[i]
             local link = GetLootItemLink(lootId)
             local isSetItem = IsItemLinkSetCollectionPiece(link)
-            local name = GetItemLinkName(link)
+            local name = LocalizeString("<<1>>", GetItemLinkName(link))
             if itemOnList(link, BLIST_TOKEN) and isSetItem then
                 table.insert(bListedSetGearList, link)
             elseif IsItemLinkStolen(link) and (db.stolenRule == "never loot" or db.stolenRule == "never loot strict") then
@@ -3224,7 +3245,7 @@ local function SettingInitialize()
         table.insert(temp, "-------- " .. title .. " --------")
         table.insert(ids, 0)
         for _, entry in pairs(list) do
-            table.insert(temp, GetItemLinkName(entry))
+            table.insert(temp, LocalizeString("<<1>>", GetItemLinkName(entry)))
             table.insert(ids, GetItemLinkItemId(entry))
         end
         return temp, ids
@@ -3256,6 +3277,12 @@ local function SettingInitialize()
     end
 
     function MSAL.ContextAddToList(link, token)
+        if not link or link == "" or GetItemLinkItemId(link) == 0 then
+            if token == WLIST_TOKEN or token == WLIST_JUNK_TOKEN then
+                ChatboxLog(GetString(MSAL_CONTEXT_EMPTY_LINK))
+            end
+            return
+        end
         local cfg = getListConfig(token)
         local itemId = GetItemLinkItemId(link)
 
@@ -3281,7 +3308,7 @@ local function SettingInitialize()
             for i = #otherCfg.list, 1, -1 do
                 if ListEntryMatches(otherCfg.list[i], link) then
                     local removedLink = otherCfg.list[i]
-                    ChatboxLog(string.format(GetString(MSAL_LIST_REMOVE), GetItemLinkName(removedLink),
+                    ChatboxLog(string.format(GetString(MSAL_LIST_REMOVE), LocalizeString("<<1>>", GetItemLinkName(removedLink)),
                         otherCfg.listName))
                     table.remove(otherCfg.list, i)
                     local otherCtrl = WM:GetControlByName(otherCfg.removeControlName)
@@ -3293,12 +3320,13 @@ local function SettingInitialize()
         end
         for _, v in pairs(cfg.list) do
             if ListEntryMatches(v, link) then
+                ChatboxLog(string.format(GetString(MSAL_LIST_ADD), LocalizeString("<<1>>", GetItemLinkName(link)), cfg.listName))
                 return
             end
         end
 
         table.insert(cfg.list, link)
-        ChatboxLog(string.format(GetString(MSAL_LIST_ADD), GetItemLinkName(link), cfg.listName))
+        ChatboxLog(string.format(GetString(MSAL_LIST_ADD), LocalizeString("<<1>>", GetItemLinkName(link)), cfg.listName))
         if token == BLIST_TOKEN and isUsingVanillaAutoLoot then
             local disableLink = ZO_LinkHandler_CreateLinkWithoutBrackets(GetString(MSAL_AUTOLOOT_DISABLE_TEXT), nil,
                 MSAL_AUTOLOOT_DISABLE)
@@ -3309,18 +3337,30 @@ local function SettingInitialize()
             ctrl:UpdateChoices(getListChoices(token))
         end
 
+        local backpackTouched = false
         for bagSlot = 1, GetBagSize(BAG_BACKPACK) do
             local bagLink = GetItemLink(BAG_BACKPACK, bagSlot)
             if itemId == GetItemLinkItemId(bagLink) then
                 if token == WLIST_TOKEN then
                     if IsItemJunk(BAG_BACKPACK, bagSlot) then
                         SetItemIsJunk(BAG_BACKPACK, bagSlot, false)
+                        backpackTouched = true
                     end
                 elseif token == WLIST_JUNK_TOKEN then
                     if not IsItemJunk(BAG_BACKPACK, bagSlot) and CanItemBeMarkedAsJunk(BAG_BACKPACK, bagSlot) then
                         SetItemIsJunk(BAG_BACKPACK, bagSlot, true)
+                        backpackTouched = true
                     end
                 end
+            end
+        end
+        if backpackTouched then
+            if token == WLIST_TOKEN then
+                ChatboxLog(string.format(GetString(MSAL_BACKPACK_UNMARK_FOR_LIST),
+                    LocalizeString("<<1>>", GetItemLinkName(link)), cfg.listName))
+            elseif token == WLIST_JUNK_TOKEN then
+                ChatboxLog(string.format(GetString(MSAL_BACKPACK_MARK_FOR_LIST),
+                    LocalizeString("<<1>>", GetItemLinkName(link)), cfg.listName))
             end
         end
     end
@@ -3360,7 +3400,7 @@ local function SettingInitialize()
             for i = #otherCfg.list, 1, -1 do
                 if ListEntryMatches(otherCfg.list[i], link) then
                     local removedLink = otherCfg.list[i]
-                    ChatboxLog(string.format(GetString(MSAL_LIST_REMOVE), GetItemLinkName(removedLink),
+                    ChatboxLog(string.format(GetString(MSAL_LIST_REMOVE), LocalizeString("<<1>>", GetItemLinkName(removedLink)),
                         otherCfg.listName))
                     table.remove(otherCfg.list, i)
                     WM:GetControlByName(otherCfg.removeControlName):UpdateChoices(getListChoices(otherToken))
@@ -3371,7 +3411,7 @@ local function SettingInitialize()
         -- Check if item already exists in current list
         for _, v in pairs(cfg.list) do
             if ListEntryMatches(v, link) then
-                ChatboxLog(string.format(GetString(MSAL_LIST_ALREADY_EXIST), GetItemLinkName(link), cfg.listName))
+                ChatboxLog(string.format(GetString(MSAL_LIST_ALREADY_EXIST), LocalizeString("<<1>>", GetItemLinkName(link)), cfg.listName))
                 WM:GetControlByName(cfg.controlName).editbox:SetText("")
                 return
             end
@@ -3407,7 +3447,7 @@ local function SettingInitialize()
             end
         end
 
-        ChatboxLog(string.format(GetString(MSAL_LIST_ADD), GetItemLinkName(link), cfg.listName))
+        ChatboxLog(string.format(GetString(MSAL_LIST_ADD), LocalizeString("<<1>>", GetItemLinkName(link)), cfg.listName))
         if token == BLIST_TOKEN and isUsingVanillaAutoLoot then
             local disableLink = ZO_LinkHandler_CreateLinkWithoutBrackets(GetString(MSAL_AUTOLOOT_DISABLE_TEXT), nil,
                 MSAL_AUTOLOOT_DISABLE)
@@ -3427,8 +3467,7 @@ local function SettingInitialize()
         else
             for i = #cfg.list, 1, -1 do
                 if GetItemLinkItemId(cfg.list[i]) == itemId then
-                    ChatboxLog(string.format(GetString(MSAL_LIST_REMOVE), GetItemLinkName(cfg.list[i]), cfg.listName))
-                    ChatboxLog(string.format(GetString(MSAL_LIST_REMOVE), GetItemLinkName(cfg.list[i]), cfg.listName))
+                    ChatboxLog(string.format(GetString(MSAL_LIST_REMOVE), LocalizeString("<<1>>", GetItemLinkName(cfg.list[i])), cfg.listName))
                     table.remove(cfg.list, i)
                 end
             end
@@ -3833,6 +3872,21 @@ local function SettingInitialize()
                         db.unwantedItemsDisposer = value
                     end,
                     default = "none"
+                },
+                {
+                    type = "checkbox",
+                    name = "/ " .. GetString(MSAL_DESTROY_SAFEGUARD_OPTION),
+                    tooltip = GetString(MSAL_DESTROY_SAFEGUARD_TOOLTIP),
+                    getFunc = function()
+                        return db.destroySafeguard
+                    end,
+                    setFunc = function(value)
+                        db.destroySafeguard = value
+                    end,
+                    default = true,
+                    disabled = function()
+                        return db.unwantedItemsDisposer ~= "destroy"
+                    end
                 },
                 -- {
                 --     type = "slider",
@@ -5151,8 +5205,21 @@ local function SettingInitialize()
 
     MSALSettingPanel = LAM2:RegisterAddonPanel("MuchSmarterAutoLootOptions", panelData)
     LAM2:RegisterOptionControls("MuchSmarterAutoLootOptions", optionsData)
-    CALLBACK_MANAGER:RegisterCallback("LAM-PanelOpened", function(panel)
-        if panel ~= MSALSettingPanel then return end
+
+    -- it's not working as intended but I still leave it here. maybe someday I'll find the right way to refresh context-menu-added items in the list dropmenu
+    -- CALLBACK_MANAGER:RegisterCallback("LAM-PanelOpened", function(panel)
+    --     if panel ~= MSALSettingPanel then return end
+    --     local function refresh(token)
+    --         local ctrl = WM:GetControlByName(getListConfig(token).removeControlName)
+    --         if ctrl then ctrl:UpdateChoices(getListChoices(token)) end
+    --     end
+    --     refresh(BLIST_TOKEN)
+    --     refresh(WLIST_TOKEN)
+    --     refresh(WLIST_JUNK_TOKEN)
+    -- end)
+
+    -- I found it!!
+    local function RefreshListDropmenuItems()
         local function refresh(token)
             local ctrl = WM:GetControlByName(getListConfig(token).removeControlName)
             if ctrl then ctrl:UpdateChoices(getListChoices(token)) end
@@ -5160,7 +5227,8 @@ local function SettingInitialize()
         refresh(BLIST_TOKEN)
         refresh(WLIST_TOKEN)
         refresh(WLIST_JUNK_TOKEN)
-    end)
+    end
+    CALLBACK_MANAGER:RegisterCallback("LAM-RefreshPanel", RefreshListDropmenuItems)
 end
 
 if not ZO_IsConsoleOrGameCoreUI() then
@@ -5454,26 +5522,49 @@ local function OnLoaded(_, addon)
                 zo_strformat(GetString(MSAL_LRM_UNBOX_TOOLTIP), GetString(SI_ITEMTYPE70)))
         end
     end
+    
 
-    local oldVersion = tonumber(db.latestMinorUpdateVersion)
-    if not oldVersion or oldVersion < 80000 then
-        local templateItemlink = "|H1:item:%s:307:50:0:0:0:0:0:0:0:0:0:0:0:0:36:0:0:0:0:0|h|h"
-        local function migrateList(list)
-            for i = #list, 1, -1 do
-                if type(list[i]) == "number" then
-                    list[i] = string.format(templateItemlink, list[i])
+    if db.latestMinorUpdateVersion ~= MSAL.addonVersion then
+        local oldVersion = nil
+        if db.latestMinorUpdateVersion then
+            oldVersion = tonumber(db.latestMinorUpdateVersion)
+        end
+
+        if not oldVersion or oldVersion < 80000 then
+            -- migrate pre-8.0.0 numeric item IDs to item links
+            local templateItemlink = "|H1:item:%s:307:50:0:0:0:0:0:0:0:0:0:0:0:0:36:0:0:0:0:0|h|h"
+            local function migrateList(list)
+                for i = #list, 1, -1 do
+                    if type(list[i]) == "number" then
+                        list[i] = string.format(templateItemlink, list[i])
+                    end
                 end
             end
+            migrateList(dbAccount.blacklist)
+            migrateList(dbAccount.whitelist)
+            migrateList(dbAccount.wlistJunk)
+            migrateList(dbChar.blacklist)
+            migrateList(dbChar.whitelist)
+            migrateList(dbChar.wlistJunk)
         end
-        migrateList(dbAccount.blacklist)
-        migrateList(dbAccount.whitelist)
-        migrateList(dbAccount.wlistJunk)
-        migrateList(dbChar.blacklist)
-        migrateList(dbChar.whitelist)
-        migrateList(dbChar.wlistJunk)
-    end
-    if db.latestMinorUpdateVersion ~= MSAL.addonVersion then
-        db.latestMinorUpdateVersion = MSAL.addonVersion
+
+        if not oldVersion or oldVersion < 80100 then
+            -- remove empty strings from all lists
+            local function cleanList(list)
+                for i = #list, 1, -1 do
+                    if not list[i] or list[i] == "" or GetItemLinkItemId(list[i]) == 0 then
+                        table.remove(list, i)
+                    end
+                end
+            end
+            cleanList(dbAccount.blacklist)
+            cleanList(dbAccount.whitelist)
+            cleanList(dbAccount.wlistJunk)
+            cleanList(dbChar.blacklist)
+            cleanList(dbChar.whitelist)
+            cleanList(dbChar.wlistJunk)
+        end
+
         -- deal with legacy options
         if db.filters.uncapped ~= nil then
             db.filters.lootCappedCurrencies = db.filters.uncapped
@@ -5739,6 +5830,7 @@ local function OnLoaded(_, addon)
         if db.filters.rareTrait == "only weapons" or db.filters.rareTrait == "only armors" or db.filters.rareTrait == "only jewelry" then
             db.filters.rareTrait = "always loot"
         end
+        db.latestMinorUpdateVersion = MSAL.addonVersion
     end -- latestMinorUpdateVersion
 
     SettingInitialize()
@@ -6576,7 +6668,7 @@ end
 
 function MSAL.testProcess(itemlinks)
     for _, itemlink in ipairs(itemlinks) do
-        local name = GetItemLinkName(itemlink)
+        local name = LocalizeString("<<1>>", GetItemLinkName(itemlink))
 
         local itemType, specializedItemType = GetItemLinkItemType(itemlink)
         local quality = GetItemLinkDisplayQuality(itemlink)
