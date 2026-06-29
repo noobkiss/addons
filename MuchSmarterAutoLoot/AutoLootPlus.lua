@@ -53,13 +53,11 @@ local autoDeconStation = nil
 local autoDeconScanned = false
 local isUniDecon = false
 local stationTradeSkill = nil
-local nonLootDisposeBuffer = {}
 local chatlogBuffer = {}
 local chatlogFlushEpoch = 0
-local nonLootDisposeBuffer = {}
+local nonLootDisposedBuffer = {}
+local nonLootReceivedBuffer = {}
 local nonLootFlushEpoch = 0
-local nonLootThroughputBuffer = {}
-local nonLootThroughputFlushEpoch = 0
 local lootWindowShortcutButton
 local TSCApi = nil
 
@@ -376,80 +374,73 @@ local function ChatboxLog(str)
     end, GetLatency())
 end
 
-local function FlushNonLootDispose()
-    if next(nonLootDisposeBuffer) == nil then
-        return
-    end
-    local parts = {}
-    for action, links in pairs(nonLootDisposeBuffer) do
+local function FlushNonLootBuffer()
+    if #nonLootReceivedBuffer > 0 then
         local deduped, quantity = {}, {}
-        for _, lnk in ipairs(links) do
-            quantity[lnk] = (quantity[lnk] or 0) + 1
+        for _, entry in ipairs(nonLootReceivedBuffer) do
+            quantity[entry] = (quantity[entry] or 0) + 1
         end
-        for _, lnk in ipairs(links) do
-            if quantity[lnk] then
-                if quantity[lnk] > 1 then
-                    table.insert(deduped, lnk .. " * " .. quantity[lnk])
+        for _, entry in ipairs(nonLootReceivedBuffer) do
+            if quantity[entry] then
+                if quantity[entry] > 1 then
+                    table.insert(deduped, entry .. " * " .. quantity[entry])
                 else
-                    table.insert(deduped, lnk)
+                    table.insert(deduped, entry)
                 end
-                quantity[lnk] = nil
+                quantity[entry] = nil
             end
         end
-        table.insert(parts, action .. GetString(MSAL_SPACE) .. table.concat(deduped, GetString(SI_LIST_COMMA_SEPARATOR)))
+        ChatboxLog(GetString(SI_ITEM_ACTION_LOOT_TAKE) .. GetString(MSAL_SPACE) ..
+                       table.concat(deduped, GetString(SI_LIST_COMMA_SEPARATOR)))
+        FlushChatlogBuffer()
+        nonLootReceivedBuffer = {}
     end
-    ChatboxLog(table.concat(parts, GetString(SI_LIST_PERIOD_SEPARATOR)))
-    nonLootDisposeBuffer = {}
+    if next(nonLootDisposedBuffer) ~= nil then
+        local parts = {}
+        for action, links in pairs(nonLootDisposedBuffer) do
+            local deduped, quantity = {}, {}
+            for _, lnk in ipairs(links) do
+                quantity[lnk] = (quantity[lnk] or 0) + 1
+            end
+            for _, lnk in ipairs(links) do
+                if quantity[lnk] then
+                    if quantity[lnk] > 1 then
+                        table.insert(deduped, lnk .. " * " .. quantity[lnk])
+                    else
+                        table.insert(deduped, lnk)
+                    end
+                    quantity[lnk] = nil
+                end
+            end
+            table.insert(parts, action .. GetString(MSAL_SPACE) .. table.concat(deduped, GetString(SI_LIST_COMMA_SEPARATOR)))
+        end
+        ChatboxLog(table.concat(parts, GetString(SI_LIST_PERIOD_SEPARATOR)))
+        nonLootDisposedBuffer = {}
+    end
 end
 
-local function BufferedItemDisposeLog(action, link)
-    if not nonLootDisposeBuffer[action] then
-        nonLootDisposeBuffer[action] = {}
-    end
-    table.insert(nonLootDisposeBuffer[action], link)
+local function scheduleNonLootFlush()
     nonLootFlushEpoch = nonLootFlushEpoch + 1
     local epoch = nonLootFlushEpoch
     zo_callLater(function()
         if nonLootFlushEpoch == epoch then
             nonLootFlushEpoch = 0
-            FlushNonLootDispose()
+            FlushNonLootBuffer()
         end
     end, 300)
 end
 
-local function FlushNonLootThroughput()
-    if #nonLootThroughputBuffer == 0 then
-        return
+local function BufferedItemDisposeLog(action, link)
+    if not nonLootDisposedBuffer[action] then
+        nonLootDisposedBuffer[action] = {}
     end
-    local deduped, quantity = {}, {}
-    for _, entry in ipairs(nonLootThroughputBuffer) do
-        quantity[entry] = (quantity[entry] or 0) + 1
-    end
-    for _, entry in ipairs(nonLootThroughputBuffer) do
-        if quantity[entry] then
-            if quantity[entry] > 1 then
-                table.insert(deduped, entry .. " * " .. quantity[entry])
-            else
-                table.insert(deduped, entry)
-            end
-            quantity[entry] = nil
-        end
-    end
-    ChatboxLog(GetString(SI_ITEM_ACTION_LOOT_TAKE) .. GetString(MSAL_SPACE) ..
-                   table.concat(deduped, GetString(SI_LIST_COMMA_SEPARATOR)))
-    nonLootThroughputBuffer = {}
+    table.insert(nonLootDisposedBuffer[action], link)
+    scheduleNonLootFlush()
 end
 
 local function BufferedItemThroughputLog(entry)
-    table.insert(nonLootThroughputBuffer, entry)
-    nonLootThroughputFlushEpoch = nonLootThroughputFlushEpoch + 1
-    local epoch = nonLootThroughputFlushEpoch
-    zo_callLater(function()
-        if nonLootThroughputFlushEpoch == epoch then
-            nonLootThroughputFlushEpoch = 0
-            FlushNonLootThroughput()
-        end
-    end, 300)
+    table.insert(nonLootReceivedBuffer, entry)
+    scheduleNonLootFlush()
 end
 
 local function DebugLog(str)
@@ -942,7 +933,8 @@ local function OnInventoryUpdate(_, bagId, slotId, _, _, _, _)
                     end
                 elseif filterKey == "intricate" then
                     postfix = GetString(SI_ITEMTRAITTYPE9)
-                elseif filterKey == "treasures" or filterKey == "trash" then
+                elseif (filterKey == "treasures" or filterKey == "trash") and
+                    db.filters[filterKey] == "loot and junk" then
                     postfix = GetString(SI_ITEM_ACTION_MARK_AS_JUNK)
                 elseif filterKey == "recipes" then
                     if itemType == ITEMTYPE_RACIAL_STYLE_MOTIF or itemType == ITEMTYPE_RECIPE or
@@ -2386,7 +2378,8 @@ local function OnLootUpdated()
                     end
                 elseif filterKey == "intricate" then
                     chatlogPostfix = chatlogPostfix .. GetString(SI_ITEMTRAITTYPE9)
-                elseif filterKey == "treasures" or filterKey == "trash" then
+                elseif (filterKey == "treasures" or filterKey == "trash") and
+                    db.filters[filterKey] == "loot and junk" then
                     chatlogPostfix = chatlogPostfix .. GetString(SI_ITEM_ACTION_MARK_AS_JUNK)
                 elseif filterKey == "scribing" then
                     if not IsItemLinkTradeable(link) then
@@ -5237,15 +5230,25 @@ if not ZO_IsConsoleOrGameCoreUI() then
             if not db.contextMenuEnabled then
                 return
             end
-            local bagId, slotIndex = ZO_Inventory_GetBagAndIndex(inventorySlot)
-            local link = GetItemLink(bagId, slotIndex)
-            AddCustomMenuItem("AL+: " .. GetString(MSAL_WLIST), function()
-                MSAL.ContextAddToList(link, WLIST_TOKEN)
-            end)
-            AddCustomMenuItem("AL+: " .. GetString(MSAL_WLIST) .. " (" ..
-                                  "|t28:28:EsoUI/Art/inventory/inventory_tabicon_junk_up.dds|t" .. ")", function()
-                MSAL.ContextAddToList(link, WLIST_JUNK_TOKEN)
-            end)
+            local slotType = ZO_InventorySlot_GetType(inventorySlot)
+            local link = nil
+            if slotType == SLOT_TYPE_ITEM or slotType == SLOT_TYPE_EQUIPMENT or
+                slotType == SLOT_TYPE_BANK_ITEM or slotType == SLOT_TYPE_GUILD_BANK_ITEM or
+                slotType == SLOT_TYPE_TRADING_HOUSE_POST_ITEM or slotType == SLOT_TYPE_REPAIR or
+                slotType == SLOT_TYPE_CRAFTING_COMPONENT or slotType == SLOT_TYPE_PENDING_CRAFTING_COMPONENT or
+                slotType == SLOT_TYPE_CRAFT_BAG_ITEM then
+                local bagId, slotIndex = ZO_Inventory_GetBagAndIndex(inventorySlot)
+                link = GetItemLink(bagId, slotIndex)
+            end
+            if link and link ~= "" then
+                AddCustomMenuItem("AL+: " .. GetString(MSAL_WLIST), function()
+                    MSAL.ContextAddToList(link, WLIST_TOKEN)
+                end)
+                AddCustomMenuItem("AL+: " .. GetString(MSAL_WLIST) .. " (" ..
+                                      "|t28:28:EsoUI/Art/inventory/inventory_tabicon_junk_up.dds|t" .. ")", function()
+                    MSAL.ContextAddToList(link, WLIST_JUNK_TOKEN)
+                end)
+            end
         end)
     end
 
