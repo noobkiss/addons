@@ -1,3 +1,6 @@
+v1.2.48
+update for 2026-06-29 RIP Signet&WW
+
 v1.2.47
 update for 2026-06-09 Class Mastery
 
