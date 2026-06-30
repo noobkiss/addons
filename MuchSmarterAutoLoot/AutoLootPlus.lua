@@ -1,7 +1,7 @@
 MuchSmarterAutoLoot = MuchSmarterAutoLoot or {}
 local MSAL = MuchSmarterAutoLoot
-MSAL.version = "8.1.0"
-MSAL.addonVersion = 80100
+MSAL.version = "8.1.2"
+MSAL.addonVersion = 80102
 MSAL.author = "Lykeion"
 
 local MSALSettingPanel = {}
@@ -561,6 +561,14 @@ local function normalizeEquipSlot(slot)
     return slot
 end
 
+local function CanGemifyItem(bagId, slotIndex)
+   if IsItemFromCrownCrate(bagId, slotIndex) and not IsItemPlayerLocked(bagId, slotIndex) then
+      local itemsRequired, gemsAwarded = GetNumCrownGemsFromItemManualGemification(bagId, slotIndex)
+      return gemsAwarded > 0 and itemsRequired > 0
+   end
+   return false
+end
+
 local function IsSameSetItem(link1, link2)
     -- "|H0:item:162519:363:50:0:0:0:0:0:0:0:0:0:0:0:2048:102:0:0:0:0:0|h|h", "|H1:item:162519:364:50:5365:370:50:2:0:0:0:0:0:0:0:2049:102:0:1:0:377:0|h|h"
     local _, _, _, _, _, setId1 = GetItemLinkSetInfo(link1, false)
@@ -822,28 +830,18 @@ local function OnOpenLaunder()
         return
     end
     if AreAnyItemsStolen(BAG_BACKPACK) then
-        local total = 0
-        local filteredDataTable = SHARED_INVENTORY:GenerateFullSlotData(nil, BAG_BACKPACK)
-        for _, data in pairs(filteredDataTable) do
-            if data.stolen == true and data.isJunk == false then
-                total = total + data.sellPrice * data.stackCount
-            end
-        end
-        if total > 0 then
-            if ZO_IsConsoleOrGameCoreUI() then
+        if ZO_IsConsoleOrGameCoreUI() then
+            LaunderAllStolen()
+        else
+            if db.skipDialog then
                 LaunderAllStolen()
             else
-                if db.skipDialog then
-                    LaunderAllStolen()
-                else
-                    EVENT_MANAGER:RegisterForUpdate("MSAL_UPDATE_AUTO_LAUNDER", 200, function()
-                        if not ZO_Dialogs_IsShowingDialog() then
-                            ZO_Dialogs_ShowDialog("MSAL_LAUNDER_ALL_STOLEN")
-                            EVENT_MANAGER:UnregisterForUpdate("MSAL_UPDATE_AUTO_LAUNDER")
-                        end
-                    end)
-                end
-
+                EVENT_MANAGER:RegisterForUpdate("MSAL_UPDATE_AUTO_LAUNDER", 200, function()
+                    if not ZO_Dialogs_IsShowingDialog() then
+                        ZO_Dialogs_ShowDialog("MSAL_LAUNDER_ALL_STOLEN")
+                        EVENT_MANAGER:UnregisterForUpdate("MSAL_UPDATE_AUTO_LAUNDER")
+                    end
+                end)
             end
         end
     end
@@ -967,11 +965,12 @@ local function OnInventoryUpdate(_, bagId, slotId, _, _, _, _)
         if not filterKey then
             local disposerApplied = isGear and db.gearDisposer or db.unwantedItemsDisposer
             if disposerApplied == "destroy" then
-                local isSafeguarded = db.destroySafeguard and
+                local isSafeguarded = CanGemifyItem(bagId, slotId) or
+                    (db.destroySafeguard and
                     (isCrafted or
                     itemType == ITEMTYPE_RACIAL_STYLE_MOTIF or
                     itemType == ITEMTYPE_RECIPE or
-                    itemType == ITEMTYPE_COLLECTIBLE)
+                    itemType == ITEMTYPE_COLLECTIBLE))
                 if isSafeguarded then
                     if CanItemBeMarkedAsJunk(bagId, slotId) then
                         SetItemIsJunk(bagId, slotId, true)
@@ -5526,7 +5525,7 @@ local function OnLoaded(_, addon)
         end
     end
     
-
+    -- handle legacy sv
     if db.latestMinorUpdateVersion ~= MSAL.addonVersion then
         local oldVersion = nil
         if db.latestMinorUpdateVersion then
