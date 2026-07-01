@@ -1,7 +1,7 @@
 MuchSmarterAutoLoot = MuchSmarterAutoLoot or {}
 local MSAL = MuchSmarterAutoLoot
-MSAL.version = "8.1.2"
-MSAL.addonVersion = 80102
+MSAL.version = "8.1.3"
+MSAL.addonVersion = 80103
 MSAL.author = "Lykeion"
 
 local MSALSettingPanel = {}
@@ -74,7 +74,6 @@ local defaults = {
     closeLootWindow = false,
     unwantedItemsDisposer = "none",
     gearDisposer = "none",
-    destroySafeguard = true,
     deconThreshold = 0,
     junkThreshold = 0,
     autoSellJunk = true,
@@ -115,6 +114,7 @@ local defaults = {
         jewelryIntricate = "always loot",
         intricateAutoDecon = false,
         companionGears = "always loot",
+        craftedGears = "always loot",
         weapons = "never loot",
         armors = "never loot",
         jewelry = "never loot",
@@ -430,7 +430,7 @@ local function scheduleNonLootFlush()
     end, 300)
 end
 
-local function BufferedItemDisposeLog(action, link)
+local function BufferItemDisposeLog(action, link)
     if not nonLootDisposedBuffer[action] then
         nonLootDisposedBuffer[action] = {}
     end
@@ -438,7 +438,7 @@ local function BufferedItemDisposeLog(action, link)
     scheduleNonLootFlush()
 end
 
-local function BufferedItemThroughputLog(entry)
+local function BufferItemReceivedLog(entry)
     table.insert(nonLootReceivedBuffer, entry)
     scheduleNonLootFlush()
 end
@@ -903,7 +903,7 @@ local function OnInventoryUpdate(_, bagId, slotId, _, _, _, _)
             SetItemIsJunk(bagId, slotId, true)
         end
         if quality >= db.printDisposeThreshold and not IsLootActive() then
-            BufferedItemDisposeLog(GetString(SI_ITEM_ACTION_MARK_AS_JUNK), link)
+            BufferItemDisposeLog(GetString(SI_ITEM_ACTION_MARK_AS_JUNK), link)
         end
     end
 
@@ -957,7 +957,7 @@ local function OnInventoryUpdate(_, bagId, slotId, _, _, _, _)
                     entry = entry .. GetString(MSAL_SPACE) .. chatlogSuffix
                     chatlogSuffix = nil
                 end
-                BufferedItemThroughputLog(entry)
+                BufferItemReceivedLog(entry)
             end
         else
             DebugLog("Non-loot item did not match any filter")
@@ -965,24 +965,18 @@ local function OnInventoryUpdate(_, bagId, slotId, _, _, _, _)
         if not filterKey then
             local disposerApplied = isGear and db.gearDisposer or db.unwantedItemsDisposer
             if disposerApplied == "destroy" then
-                local isSafeguarded = CanGemifyItem(bagId, slotId) or
-                    (db.destroySafeguard and
-                    (isCrafted or
-                    itemType == ITEMTYPE_RACIAL_STYLE_MOTIF or
-                    itemType == ITEMTYPE_RECIPE or
-                    itemType == ITEMTYPE_COLLECTIBLE))
-                if isSafeguarded then
+                if CanGemifyItem(bagId, slotId) then
                     if CanItemBeMarkedAsJunk(bagId, slotId) then
                         SetItemIsJunk(bagId, slotId, true)
                     end
                     if quality >= db.printDisposeThreshold then
-                        BufferedItemDisposeLog(GetString(SI_ITEM_ACTION_MARK_AS_JUNK), link)
+                        BufferItemDisposeLog(GetString(SI_ITEM_ACTION_MARK_AS_JUNK), link)
                         ChatboxLog(zo_strformat(GetString(MSAL_DESTROY_SAFEGUARD), link))
                     end
                 else
                     DestroyItem(bagId, slotId)
                     if quality >= db.printDisposeThreshold then
-                        BufferedItemDisposeLog(GetString(SI_ITEM_ACTION_DESTROY), link)
+                        BufferItemDisposeLog(GetString(SI_ITEM_ACTION_DESTROY), link)
                     end
                 end
             elseif disposerApplied == "junk" or disposerApplied == "decon and junk" then
@@ -991,7 +985,12 @@ local function OnInventoryUpdate(_, bagId, slotId, _, _, _, _)
                 end
                 if quality >= db.printDisposeThreshold then
                     if not ZO_IsConsoleOrGameCoreUI() then
-                        BufferedItemDisposeLog(GetString(SI_ITEM_ACTION_MARK_AS_JUNK), link)
+                        local action = GetString(SI_ITEM_ACTION_MARK_AS_JUNK)
+                        if disposerApplied == "decon and junk" and
+                            (db.deconThreshold == 0 or quality >= db.deconThreshold) then
+                            action = GetString(MSAL_REGISTER_FOR_DECON_AND_JUNK)
+                        end
+                        BufferItemDisposeLog(action, link)
                     end
                 end
             end
@@ -1009,14 +1008,19 @@ local function OnInventoryUpdate(_, bagId, slotId, _, _, _, _)
         if db.autoDisposeAfterBind then
             if db.gearDisposer == "junk" or db.gearDisposer == "decon and junk" then
                 if quality >= db.printDisposeThreshold then
-                    BufferedItemDisposeLog(GetString(SI_ITEM_ACTION_MARK_AS_JUNK), link)
+                    local action = GetString(SI_ITEM_ACTION_MARK_AS_JUNK)
+                    if db.gearDisposer == "decon and junk" and
+                        (db.deconThreshold == 0 or quality >= db.deconThreshold) then
+                        action = GetString(MSAL_REGISTER_FOR_DECON_AND_JUNK)
+                    end
+                    BufferItemDisposeLog(action, link)
                 end
                 if quality < ITEM_DISPLAY_QUALITY_MYTHIC_OVERRIDE then
                     SetItemIsJunk(bagId, slotId, true)
                 end
             elseif db.gearDisposer == "destroy" then
                 if quality >= db.printDisposeThreshold then
-                    BufferedItemDisposeLog(GetString(SI_ITEM_ACTION_DESTROY), link)
+                    BufferItemDisposeLog(GetString(SI_ITEM_ACTION_DESTROY), link)
                 end
                 if quality < ITEM_DISPLAY_QUALITY_MYTHIC_OVERRIDE then
                     DestroyItem(bagId, slotId)
@@ -1120,7 +1124,7 @@ local function OnDisposedUpdated(_, bagId, slotId, _, _, _, _)
             else
                 if quality >= db.printDisposeThreshold then
                     addDisposeLog("", zo_strformat(GetString(MSAL_LIST_UNMARKABLE_JUNK),
-                        GetString(SI_ITEM_ACTION_MARK_AS_JUNK), link))
+                        GetString(SI_ITEM_ACTION_MARK_AS_JUNK), link, GetString(SI_ITEM_ACTION_LOOT_TAKE)))
                 end
             end
         elseif disposerApplied == "decon" then
@@ -1671,7 +1675,6 @@ local function ShouldLootIngredient(filterType, link)
 end
 
 local function ShouldLootStyleMat(filterType, filterType3rd, link)
-    -- some style materials don't have style material, and thus parameter link can be nil
     if link == "" then
         return false
     end
@@ -1942,6 +1945,7 @@ function MSAL.FilterItem(link, isQuest, lootType)
     local isWeapon = itemType == ITEMTYPE_WEAPON
     local isJewelry = jewelryTraits[trait] and itemType == ITEMTYPE_ARMOR
     local isCompanionGear = GetItemLinkActorCategory(link) == GAMEPLAY_ACTOR_CATEGORY_COMPANION
+    local isCrafted = IsItemLinkCrafted(link)
     local isRareWeaponTrait = trait == ITEM_TRAIT_TYPE_WEAPON_NIRNHONED
     local isRareArmorTrait = trait == ITEM_TRAIT_TYPE_ARMOR_NIRNHONED
     local isRareJewelryTrait =
@@ -1962,6 +1966,11 @@ function MSAL.FilterItem(link, isQuest, lootType)
         if isCompanionGear then
             if ShouldLootGear(db.filters.companionGears, quality) then
                 return "companionGears", "companion gear"
+            end
+        end
+        if isCrafted then
+            if ShouldLootNormal(db.filters.craftedGears, itemType) then
+                return "craftedGears", "player crafted gear"
             end
         end
         if not isJewelry and db.filters.styleMaterials3rd == "per third" and 
@@ -3278,37 +3287,28 @@ local function SettingInitialize()
         local cfg = getListConfig(token)
         local itemId = GetItemLinkItemId(link)
 
-        local otherTokens
-        if token == BLIST_TOKEN then
-            otherTokens = {
-                WLIST_TOKEN,
-                WLIST_JUNK_TOKEN
-            }
-        elseif token == WLIST_TOKEN then
-            otherTokens = {
-                BLIST_TOKEN,
-                WLIST_JUNK_TOKEN
-            }
-        else
-            otherTokens = {
-                BLIST_TOKEN,
-                WLIST_TOKEN
-            }
-        end
-        for _, otherToken in ipairs(otherTokens) do
-            local otherCfg = getListConfig(otherToken)
-            for i = #otherCfg.list, 1, -1 do
-                if ListEntryMatches(otherCfg.list[i], link) then
-                    local removedLink = otherCfg.list[i]
-                    ChatboxLog(string.format(GetString(MSAL_LIST_REMOVE), LocalizeString("<<1>>", GetItemLinkName(removedLink)),
-                        otherCfg.listName))
-                    table.remove(otherCfg.list, i)
-                    local otherCtrl = WM:GetControlByName(otherCfg.removeControlName)
-                    if otherCtrl then
-                        otherCtrl:UpdateChoices(getListChoices(otherToken))
+        local listTokens = {
+            BLIST_TOKEN,
+            WLIST_TOKEN,
+            WLIST_JUNK_TOKEN
+        }
+        for _, currentToken in ipairs(listTokens) do
+            if currentToken ~= token then
+                local otherCfg = getListConfig(currentToken)
+                for i = #otherCfg.list, 1, -1 do
+                    if ListEntryMatches(otherCfg.list[i], link) then
+                        local removedLink = otherCfg.list[i]
+                        ChatboxLog(string.format(GetString(MSAL_LIST_REMOVE), LocalizeString("<<1>>", GetItemLinkName(removedLink)),
+                            otherCfg.listName))
+                        table.remove(otherCfg.list, i)
+                        local otherCtrl = WM:GetControlByName(otherCfg.removeControlName)
+                        if otherCtrl then
+                            otherCtrl:UpdateChoices(getListChoices(currentToken))
+                        end
                     end
                 end
             end
+            
         end
         for _, v in pairs(cfg.list) do
             if ListEntryMatches(v, link) then
@@ -3355,6 +3355,7 @@ local function SettingInitialize()
                     LocalizeString("<<1>>", GetItemLinkName(link)), cfg.listName))
             end
         end
+        CALLBACK_MANAGER:FireCallbacks("MSAL-RefreshListsDropmenu")
     end
 
     local function addListItem(link, token)
@@ -3370,32 +3371,22 @@ local function SettingInitialize()
             return
         end
 
-        local otherTokens
-        if token == BLIST_TOKEN then
-            otherTokens = {
-                WLIST_TOKEN,
-                WLIST_JUNK_TOKEN
-            }
-        elseif token == WLIST_TOKEN then
-            otherTokens = {
-                BLIST_TOKEN,
-                WLIST_JUNK_TOKEN
-            }
-        elseif token == WLIST_JUNK_TOKEN then
-            otherTokens = {
-                BLIST_TOKEN,
-                WLIST_TOKEN
-            }
-        end
-        for _, otherToken in ipairs(otherTokens) do
-            local otherCfg = getListConfig(otherToken)
-            for i = #otherCfg.list, 1, -1 do
-                if ListEntryMatches(otherCfg.list[i], link) then
-                    local removedLink = otherCfg.list[i]
-                    ChatboxLog(string.format(GetString(MSAL_LIST_REMOVE), LocalizeString("<<1>>", GetItemLinkName(removedLink)),
-                        otherCfg.listName))
-                    table.remove(otherCfg.list, i)
-                    WM:GetControlByName(otherCfg.removeControlName):UpdateChoices(getListChoices(otherToken))
+        local listTokens = {
+            BLIST_TOKEN,
+            WLIST_TOKEN,
+            WLIST_JUNK_TOKEN
+        }
+        for _, currentToken in ipairs(listTokens) do
+            if currentToken ~= token then
+                local otherCfg = getListConfig(currentToken)
+                for i = #otherCfg.list, 1, -1 do
+                    if ListEntryMatches(otherCfg.list[i], link) then
+                        local removedLink = otherCfg.list[i]
+                        ChatboxLog(string.format(GetString(MSAL_LIST_REMOVE), LocalizeString("<<1>>", GetItemLinkName(removedLink)),
+                            otherCfg.listName))
+                        table.remove(otherCfg.list, i)
+                        WM:GetControlByName(otherCfg.removeControlName):UpdateChoices(getListChoices(currentToken))
+                    end
                 end
             end
         end
@@ -3408,7 +3399,6 @@ local function SettingInitialize()
                 return
             end
         end
-
         table.insert(cfg.list, link)
 
         if token == WLIST_TOKEN then
@@ -3446,8 +3436,10 @@ local function SettingInitialize()
             ChatboxLog(zo_strformat(GetString(MSAL_BLIST_AUTOLOOT_WARNING), disableLink))
         end
 
-        WM:GetControlByName(cfg.controlName).editbox:SetText("")
-        WM:GetControlByName(cfg.removeControlName):UpdateChoices(getListChoices(token))
+        -- WM:GetControlByName(cfg.controlName).editbox:SetText("")
+        -- WM:GetControlByName(cfg.removeControlName):UpdateChoices(getListChoices(token))
+
+        CALLBACK_MANAGER:FireCallbacks("MSAL-RefreshListsDropmenu")
     end
 
     local function removeListItem(itemId, token)
@@ -3486,8 +3478,9 @@ local function SettingInitialize()
             end
         end
 
-        WM:GetControlByName(cfg.removeControlName).dropdown:SetSelectedItem(nil)
-        WM:GetControlByName(cfg.removeControlName):UpdateChoices(getListChoices(token))
+        -- WM:GetControlByName(cfg.removeControlName).dropdown:SetSelectedItem(nil)
+        -- WM:GetControlByName(cfg.removeControlName):UpdateChoices(getListChoices(token))
+        CALLBACK_MANAGER:FireCallbacks("MSAL-RefreshListsDropmenu")
     end
 
     local optionsData = {
@@ -3511,12 +3504,13 @@ local function SettingInitialize()
                     db = dbChar
                 end
                 if not ZO_IsConsoleOrGameCoreUI() then
-                    local ctrl = WM:GetControlByName("MSAL_RemoveBList")
-                    if ctrl then ctrl:UpdateChoices(getListChoices(BLIST_TOKEN)) end
-                    ctrl = WM:GetControlByName("MSAL_RemoveWList")
-                    if ctrl then ctrl:UpdateChoices(getListChoices(WLIST_TOKEN)) end
-                    ctrl = WM:GetControlByName("MSAL_RemoveWListJunk")
-                    if ctrl then ctrl:UpdateChoices(getListChoices(WLIST_JUNK_TOKEN)) end
+                    -- local ctrl = WM:GetControlByName("MSAL_RemoveBList")
+                    -- if ctrl then ctrl:UpdateChoices(getListChoices(BLIST_TOKEN)) end
+                    -- ctrl = WM:GetControlByName("MSAL_RemoveWList")
+                    -- if ctrl then ctrl:UpdateChoices(getListChoices(WLIST_TOKEN)) end
+                    -- ctrl = WM:GetControlByName("MSAL_RemoveWListJunk")
+                    -- if ctrl then ctrl:UpdateChoices(getListChoices(WLIST_JUNK_TOKEN)) end
+                    CALLBACK_MANAGER:FireCallbacks("MSAL-RefreshListsDropmenu")
                 end
             end,
             default = true
@@ -3865,21 +3859,6 @@ local function SettingInitialize()
                     end,
                     default = "none"
                 },
-                {
-                    type = "checkbox",
-                    name = "/ " .. GetString(MSAL_DESTROY_SAFEGUARD_OPTION),
-                    tooltip = GetString(MSAL_DESTROY_SAFEGUARD_TOOLTIP),
-                    getFunc = function()
-                        return db.destroySafeguard
-                    end,
-                    setFunc = function(value)
-                        db.destroySafeguard = value
-                    end,
-                    default = true,
-                    disabled = function()
-                        return db.unwantedItemsDisposer ~= "destroy"
-                    end
-                },
                 -- {
                 --     type = "slider",
                 --     name = "/ " .. GetString(MSAL_JUNK_THRESHOLD),
@@ -4113,6 +4092,19 @@ local function SettingInitialize()
                     type = "header",
                     name = "|c999999 / " .. GetString(MSAL_GENERAL_GEARS) .. "|r",
                     width = "full"
+                },
+                                {
+                    type = "dropdown",
+                    name = GetString(MSAL_CRAFTED_GEARS),
+                    choices = booleanChoices,
+                    choicesValues = booleanChoicesValues,
+                    getFunc = function()
+                        return db.filters.craftedGears
+                    end,
+                    setFunc = function(value)
+                        db.filters.craftedGears = value
+                    end,
+                    default = "always loot"
                 },
                 {
                     type = "dropdown",
@@ -5220,7 +5212,7 @@ local function SettingInitialize()
         refresh(WLIST_TOKEN)
         refresh(WLIST_JUNK_TOKEN)
     end
-    CALLBACK_MANAGER:RegisterCallback("LAM-RefreshPanel", RefreshListDropmenuItems)
+    CALLBACK_MANAGER:RegisterCallback("MSAL-RefreshListsDropmenu", RefreshListDropmenuItems)
 end
 
 if not ZO_IsConsoleOrGameCoreUI() then
