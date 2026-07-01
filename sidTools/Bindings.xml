@@ -1,0 +1,21 @@
+<Bindings>
+    <Layer name="SI_KEYBINDINGS_LAYER_GENERAL">
+        <Category name="sidTools">
+            <Action name="ST_RELOADUI">
+                <Up>ReloadUI()</Up>
+            </Action>
+            <Action name="ST_LANG_EN">
+                <Up>SetCVar("language.2", "en")</Up>
+            </Action>
+            <Action name="ST_LANG_DE">
+                <Up>SetCVar("language.2", "de")</Up>
+            </Action>
+            <Action name="ST_LANG_FR">
+                <Up>SetCVar("language.2", "fr")</Up>
+            </Action>
+            <Action name="ST_TOGGLE_DEV_UI">
+                <Up>sidTools.Toggle()</Up>
+            </Action>
+        </Category>
+    </Layer>
+</Bindings>
